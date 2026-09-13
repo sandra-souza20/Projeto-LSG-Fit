@@ -47,6 +47,7 @@ type AuthContextValue = {
   resetPassword: (input: ResetPasswordInput) => Promise<void>;
   professionalSignIn: (input: SignInInput) => Promise<void>;
   professionalSignUp: (input: SignUpInput) => Promise<void>;
+  linkProfessional: (professionalId: string | null) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -174,6 +175,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [professionalSignIn],
   );
 
+  const linkProfessional = useCallback(
+    async (professionalId: string | null) => {
+      const updated = await apiRequest<User>('/users/me/professional', {
+        method: 'PATCH',
+        body: { professionalId },
+        token,
+      });
+      setUser((current) => (current ? { ...current, professionalId: updated.professionalId } : current));
+    },
+    [token],
+  );
+
   const value = useMemo<AuthContextValue>(
     () => ({
       role,
@@ -191,6 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       resetPassword,
       professionalSignIn,
       professionalSignUp,
+      linkProfessional,
     }),
     [
       role,
@@ -207,6 +221,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       resetPassword,
       professionalSignIn,
       professionalSignUp,
+      linkProfessional,
     ],
   );
 

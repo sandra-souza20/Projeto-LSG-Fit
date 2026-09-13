@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AddExerciseModal } from '@/components/workout/add-exercise-modal';
-import { EditEntryModal } from '@/components/workout/edit-entry-modal';
 import { ExerciseCatalogItem } from '@/components/workout/exercise-catalog-item';
+import { ExerciseDetailsModal } from '@/components/workout/exercise-details-modal';
+import { RegisterWeightModal } from '@/components/workout/register-weight-modal';
 import { WorkoutDaySection } from '@/components/workout/workout-day-section';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -12,18 +12,16 @@ import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/th
 import { useTheme } from '@/hooks/use-theme';
 import { useWorkoutPlan } from '@/hooks/use-workout-plan';
 import type { Exercise } from '@/types/exercise';
-import type { Weekday, WorkoutEntry } from '@/types/workout';
+import type { WorkoutEntry } from '@/types/workout';
 
 type Tab = 'plan' | 'catalog';
 
 export default function WorkoutsScreen() {
   const theme = useTheme();
-  const { plan, exercises, isLoading, error, addEntry, removeEntry, updateEntry } = useWorkoutPlan();
+  const { plan, exercises, isLoading, error, registerWeight } = useWorkoutPlan();
   const [tab, setTab] = useState<Tab>('plan');
   const [search, setSearch] = useState('');
-  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null);
   const [editingEntry, setEditingEntry] = useState<WorkoutEntry | null>(null);
   const [isEditSubmitting, setIsEditSubmitting] = useState(false);
   const [editFormError, setEditFormError] = useState<string | null>(null);
@@ -37,31 +35,16 @@ export default function WorkoutsScreen() {
     );
   }, [exercises, search]);
 
-  async function handleConfirmAdd(input: { dayOfWeek: Weekday; sets: number; reps: number; weight: number | null }) {
-    if (!selectedExercise) return;
-
-    setIsSubmitting(true);
-    setFormError(null);
-    try {
-      await addEntry({ exerciseId: selectedExercise.id, ...input });
-      setSelectedExercise(null);
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Não foi possível adicionar o exercício.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  async function handleConfirmEdit(input: { sets: number; reps: number; weight: number | null }) {
+  async function handleConfirmWeight(input: { weight: number | null }) {
     if (!editingEntry) return;
 
     setIsEditSubmitting(true);
     setEditFormError(null);
     try {
-      await updateEntry(editingEntry.id, input);
+      await registerWeight(editingEntry.id, input.weight);
       setEditingEntry(null);
     } catch (err) {
-      setEditFormError(err instanceof Error ? err.message : 'Não foi possível salvar as alterações.');
+      setEditFormError(err instanceof Error ? err.message : 'Não foi possível salvar a carga.');
     } finally {
       setIsEditSubmitting(false);
     }
@@ -105,15 +88,18 @@ export default function WorkoutsScreen() {
                 <WorkoutDaySection
                   key={day.dayOfWeek}
                   day={day}
+                  editLabel="Carga"
                   onEditEntry={(entry) => {
                     setEditFormError(null);
                     setEditingEntry(entry);
                   }}
-                  onRemoveEntry={removeEntry}
                 />
               ))
             ) : (
               <>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Consulte os exercícios disponíveis. Quem monta sua ficha é o seu profissional.
+                </ThemedText>
                 <TextInput
                   placeholder="Buscar exercício ou grupo muscular"
                   placeholderTextColor={theme.textSecondary}
@@ -128,10 +114,8 @@ export default function WorkoutsScreen() {
                   <ExerciseCatalogItem
                     key={exercise.id}
                     exercise={exercise}
-                    onPress={() => {
-                      setFormError(null);
-                      setSelectedExercise(exercise);
-                    }}
+                    variant="view"
+                    onPress={() => setPreviewExercise(exercise)}
                   />
                 ))}
               </>
@@ -140,18 +124,9 @@ export default function WorkoutsScreen() {
         )}
       </SafeAreaView>
 
-      <AddExerciseModal
-        exercise={selectedExercise}
-        isSubmitting={isSubmitting}
-        serverError={formError}
-        onClose={() => {
-          setSelectedExercise(null);
-          setFormError(null);
-        }}
-        onConfirm={handleConfirmAdd}
-      />
+      <ExerciseDetailsModal exercise={previewExercise} onClose={() => setPreviewExercise(null)} />
 
-      <EditEntryModal
+      <RegisterWeightModal
         entry={editingEntry}
         isSubmitting={isEditSubmitting}
         serverError={editFormError}
@@ -159,7 +134,7 @@ export default function WorkoutsScreen() {
           setEditingEntry(null);
           setEditFormError(null);
         }}
-        onConfirm={handleConfirmEdit}
+        onConfirm={handleConfirmWeight}
       />
     </ThemedView>
   );

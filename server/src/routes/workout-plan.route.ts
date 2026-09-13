@@ -8,6 +8,4 @@ const workoutPlanController = new WorkoutPlanController();
 
 workoutPlanRoutes.use(ensureAuthenticated);
 workoutPlanRoutes.get("/", workoutPlanController.list);
-workoutPlanRoutes.post("/", workoutPlanController.create);
-workoutPlanRoutes.patch("/:id", workoutPlanController.update);
-workoutPlanRoutes.delete("/:id", workoutPlanController.remove);
+workoutPlanRoutes.patch("/:id", workoutPlanController.registerWeight);

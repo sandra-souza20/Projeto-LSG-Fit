@@ -12,14 +12,15 @@ import { WEEKDAY_LABELS, type WorkoutDay, type WorkoutEntry } from '@/types/work
 type WorkoutDaySectionProps = {
   day: WorkoutDay;
   onEditEntry: (entry: WorkoutEntry) => void;
-  onRemoveEntry: (id: string) => void;
+  onRemoveEntry?: (id: string) => void;
+  editLabel?: string;
 };
 
 function formatWeight(weight: number) {
   return Number.isInteger(weight) ? String(weight) : String(weight).replace('.', ',');
 }
 
-export function WorkoutDaySection({ day, onEditEntry, onRemoveEntry }: WorkoutDaySectionProps) {
+export function WorkoutDaySection({ day, onEditEntry, onRemoveEntry, editLabel = 'Editar' }: WorkoutDaySectionProps) {
   const theme = useTheme();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -56,14 +57,16 @@ export function WorkoutDaySection({ day, onEditEntry, onRemoveEntry }: WorkoutDa
                   <View style={styles.entryActions}>
                     <Pressable onPress={() => onEditEntry(entry)} hitSlop={8}>
                       <ThemedText type="small" themeColor="accent">
-                        Editar
+                        {editLabel}
                       </ThemedText>
                     </Pressable>
-                    <Pressable onPress={() => onRemoveEntry(entry.id)} hitSlop={8}>
-                      <ThemedText type="small" themeColor="danger">
-                        Remover
-                      </ThemedText>
-                    </Pressable>
+                    {onRemoveEntry && (
+                      <Pressable onPress={() => onRemoveEntry(entry.id)} hitSlop={8}>
+                        <ThemedText type="small" themeColor="danger">
+                          Remover
+                        </ThemedText>
+                      </Pressable>
+                    )}
                   </View>
                 </View>
 

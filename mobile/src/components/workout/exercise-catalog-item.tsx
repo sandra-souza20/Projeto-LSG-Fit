@@ -9,10 +9,15 @@ import type { Exercise } from '@/types/exercise';
 type ExerciseCatalogItemProps = {
   exercise: Exercise;
   onPress: () => void;
+  // 'add' (padrao, usado pelo profissional montando a ficha) mostra um "+" em
+  // destaque; 'view' (usado pelo aluno, que so pode consultar o catalogo) mostra
+  // um indicador neutro de "ver detalhes".
+  variant?: 'add' | 'view';
 };
 
-export function ExerciseCatalogItem({ exercise, onPress }: ExerciseCatalogItemProps) {
+export function ExerciseCatalogItem({ exercise, onPress, variant = 'add' }: ExerciseCatalogItemProps) {
   const theme = useTheme();
+  const isView = variant === 'view';
 
   return (
     <ThemedView type="backgroundElement" style={styles.row}>
@@ -26,9 +31,13 @@ export function ExerciseCatalogItem({ exercise, onPress }: ExerciseCatalogItemPr
       <Pressable
         onPress={onPress}
         hitSlop={8}
-        style={({ pressed }) => [styles.addButton, { backgroundColor: theme.accent }, pressed && styles.pressed]}>
-        <ThemedText type="smallBold" themeColor="accentText">
-          +
+        style={({ pressed }) => [
+          styles.addButton,
+          { backgroundColor: isView ? theme.inputBackground : theme.accent },
+          pressed && styles.pressed,
+        ]}>
+        <ThemedText type="smallBold" themeColor={isView ? 'text' : 'accentText'}>
+          {isView ? '›' : '+'}
         </ThemedText>
       </Pressable>
     </ThemedView>

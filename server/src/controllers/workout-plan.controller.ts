@@ -1,8 +1,6 @@
 import type { Request, Response } from "express";
 import { GetWorkoutPlanService } from "../services/get-workout-plan.service.js";
-import { AddWorkoutEntryService } from "../services/add-workout-entry.service.js";
 import { UpdateWorkoutEntryService } from "../services/update-workout-entry.service.js";
-import { DeleteWorkoutEntryService } from "../services/delete-workout-entry.service.js";
 import { handleError } from "../utils/app-error.js";
 
 export class WorkoutPlanController {
@@ -18,41 +16,20 @@ export class WorkoutPlanController {
         }
     }
 
-    async create(req: Request, res: Response): Promise<Response> {
-        try {
-            const addWorkoutEntry = new AddWorkoutEntryService();
-
-            const entry = await addWorkoutEntry.execute({ ...req.body, userId: req.userId });
-
-            return res.status(201).json(entry);
-        } catch (error) {
-            return handleError(error, res);
-        }
-    }
-
-    async update(req: Request, res: Response): Promise<Response> {
+    // O aluno so pode registrar a carga usada (RF: "Registrar Carga" no Caso de Uso).
+    // Series, repeticoes e a montagem da ficha em si sao definidas pelo profissional
+    // via ProfessionalWorkoutPlanController.
+    async registerWeight(req: Request, res: Response): Promise<Response> {
         try {
             const updateWorkoutEntry = new UpdateWorkoutEntryService();
 
             const entry = await updateWorkoutEntry.execute({
-                ...req.body,
                 id: req.params.id as string,
                 userId: req.userId,
+                weight: req.body.weight,
             });
 
             return res.status(200).json(entry);
-        } catch (error) {
-            return handleError(error, res);
-        }
-    }
-
-    async remove(req: Request, res: Response): Promise<Response> {
-        try {
-            const deleteWorkoutEntry = new DeleteWorkoutEntryService();
-
-            await deleteWorkoutEntry.execute({ id: req.params.id as string, userId: req.userId });
-
-            return res.status(204).send();
         } catch (error) {
             return handleError(error, res);
         }

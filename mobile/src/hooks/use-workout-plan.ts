@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { apiRequest } from '@/services/api';
 import type { Exercise } from '@/types/exercise';
-import type { Weekday, WorkoutDay, WorkoutEntry } from '@/types/workout';
+import type { WorkoutDay, WorkoutEntry } from '@/types/workout';
 
 export function useWorkoutPlan() {
   const { token } = useAuth();
@@ -35,31 +35,13 @@ export function useWorkoutPlan() {
     load();
   }, [load]);
 
-  const addEntry = useCallback(
-    async (input: { exerciseId: string; dayOfWeek: Weekday; sets: number; reps: number; weight: number | null }) => {
-      const entry = await apiRequest<WorkoutEntry>('/workout-plan', { method: 'POST', body: input, token });
-      setPlan((current) =>
-        current.map((day) =>
-          day.dayOfWeek === input.dayOfWeek ? { ...day, entries: [...day.entries, entry] } : day,
-        ),
-      );
-    },
-    [token],
-  );
-
-  const removeEntry = useCallback(
-    async (id: string) => {
-      await apiRequest<void>(`/workout-plan/${id}`, { method: 'DELETE', token });
-      setPlan((current) => current.map((day) => ({ ...day, entries: day.entries.filter((entry) => entry.id !== id) })));
-    },
-    [token],
-  );
-
-  const updateEntry = useCallback(
-    async (id: string, input: { sets: number; reps: number; weight: number | null }) => {
+  // A ficha (exercicios, series e repeticoes) e definida pelo profissional;
+  // o aluno so registra a carga que usou em cada exercicio.
+  const registerWeight = useCallback(
+    async (id: string, weight: number | null) => {
       const updated = await apiRequest<WorkoutEntry>(`/workout-plan/${id}`, {
         method: 'PATCH',
-        body: input,
+        body: { weight },
         token,
       });
       setPlan((current) =>
@@ -72,5 +54,5 @@ export function useWorkoutPlan() {
     [token],
   );
 
-  return { plan, exercises, isLoading, error, reload: load, addEntry, removeEntry, updateEntry };
+  return { plan, exercises, isLoading, error, reload: load, registerWeight };
 }
