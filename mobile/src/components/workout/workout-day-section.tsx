@@ -14,72 +14,109 @@ type WorkoutDaySectionProps = {
   onEditEntry: (entry: WorkoutEntry) => void;
   onRemoveEntry?: (id: string) => void;
   editLabel?: string;
+  // Rotulo do cabecalho (ex. "Treino A"); por padrao usa o nome do dia da semana.
+  label?: string;
+  // Quando true, a secao comeca fechada e o cabecalho vira uma "aba" que
+  // expande/recolhe a lista de exercicios.
+  collapsible?: boolean;
+  // Quando true, prefixa cada exercicio com sua posicao (1., 2., 3.).
+  numbered?: boolean;
 };
 
 function formatWeight(weight: number) {
   return Number.isInteger(weight) ? String(weight) : String(weight).replace('.', ',');
 }
 
-export function WorkoutDaySection({ day, onEditEntry, onRemoveEntry, editLabel = 'Editar' }: WorkoutDaySectionProps) {
+export function WorkoutDaySection({
+  day,
+  onEditEntry,
+  onRemoveEntry,
+  editLabel = 'Editar',
+  label,
+  collapsible = false,
+  numbered = false,
+}: WorkoutDaySectionProps) {
   const theme = useTheme();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [isOpen, setIsOpen] = useState(!collapsible);
+
+  const headerLabel = label ?? WEEKDAY_LABELS[day.dayOfWeek];
+
+  const header = (
+    <View style={styles.header}>
+      <ThemedText type="smallBold" style={styles.dayLabel}>
+        {headerLabel}
+      </ThemedText>
+      {collapsible && (
+        <ThemedText type="smallBold" themeColor="accent">
+          {isOpen ? '▴' : '▾'}
+        </ThemedText>
+      )}
+    </View>
+  );
 
   return (
     <ThemedView type="card" style={[styles.container, { borderColor: theme.border }]}>
-      <ThemedText type="smallBold" style={styles.dayLabel}>
-        {WEEKDAY_LABELS[day.dayOfWeek]}
-      </ThemedText>
-
-      {day.entries.length === 0 ? (
-        <ThemedText type="small" themeColor="textSecondary">
-          Nenhum exercício adicionado ainda.
-        </ThemedText>
+      {collapsible ? (
+        <Pressable onPress={() => setIsOpen((current) => !current)}>{header}</Pressable>
       ) : (
-        <View style={styles.entries}>
-          {day.entries.map((entry) => {
-            const isExpanded = expandedId === entry.id;
+        header
+      )}
 
-            return (
-              <View key={entry.id} style={[styles.entryCard, { borderColor: theme.border }]}>
-                <View style={styles.entryRow}>
-                  <Pressable
-                    style={styles.entryInfo}
-                    onPress={() => setExpandedId(isExpanded ? null : entry.id)}>
-                    <ThemedText type="small">{entry.exercise.name}</ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {entry.sets}x{entry.reps}
-                      {entry.weight != null ? ` · ${formatWeight(entry.weight)}kg` : ''}
-                    </ThemedText>
-                    <ThemedText type="small" themeColor="accent">
-                      {isExpanded ? '▴' : '▾'}
-                    </ThemedText>
-                  </Pressable>
-                  <View style={styles.entryActions}>
-                    <Pressable onPress={() => onEditEntry(entry)} hitSlop={8}>
+      {isOpen &&
+        (day.entries.length === 0 ? (
+          <ThemedText type="small" themeColor="textSecondary">
+            Nenhum exercício adicionado ainda.
+          </ThemedText>
+        ) : (
+          <View style={styles.entries}>
+            {day.entries.map((entry, index) => {
+              const isExpanded = expandedId === entry.id;
+
+              return (
+                <View key={entry.id} style={[styles.entryCard, { borderColor: theme.border }]}>
+                  <View style={styles.entryRow}>
+                    <Pressable
+                      style={styles.entryInfo}
+                      onPress={() => setExpandedId(isExpanded ? null : entry.id)}>
+                      <ThemedText type="small">
+                        {numbered ? `${index + 1}. ` : ''}
+                        {entry.exercise.name}
+                      </ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {entry.sets}x{entry.reps}
+                        {entry.weight != null ? ` · ${formatWeight(entry.weight)}kg` : ''}
+                      </ThemedText>
                       <ThemedText type="small" themeColor="accent">
-                        {editLabel}
+                        {isExpanded ? '▴' : '▾'}
                       </ThemedText>
                     </Pressable>
-                    {onRemoveEntry && (
-                      <Pressable onPress={() => onRemoveEntry(entry.id)} hitSlop={8}>
-                        <ThemedText type="small" themeColor="danger">
-                          Remover
+                    <View style={styles.entryActions}>
+                      <Pressable onPress={() => onEditEntry(entry)} hitSlop={8}>
+                        <ThemedText type="small" themeColor="accent">
+                          {editLabel}
                         </ThemedText>
                       </Pressable>
-                    )}
+                      {onRemoveEntry && (
+                        <Pressable onPress={() => onRemoveEntry(entry.id)} hitSlop={8}>
+                          <ThemedText type="small" themeColor="danger">
+                            Remover
+                          </ThemedText>
+                        </Pressable>
+                      )}
+                    </View>
                   </View>
-                </View>
 
-                {isExpanded && (
-                  <Animated.View entering={FadeIn.duration(150)} style={styles.entryExpanded}>
-                    <ExerciseMedia exercise={entry.exercise} />
-                  </Animated.View>
-                )}
-              </View>
-            );
-          })}
-        </View>
-      )}
+                  {isExpanded && (
+                    <Animated.View entering={FadeIn.duration(150)} style={styles.entryExpanded}>
+                      <ExerciseMedia exercise={entry.exercise} />
+                    </Animated.View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        ))}
     </ThemedView>
   );
 }
@@ -90,6 +127,11 @@ const styles = StyleSheet.create({
     borderRadius: Radius.large,
     padding: Spacing.three,
     gap: Spacing.two,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   dayLabel: {
     textTransform: 'uppercase',

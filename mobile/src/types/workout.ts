@@ -22,6 +22,18 @@ export const WEEKDAY_LABELS: Record<Weekday, string> = {
   SUNDAY: 'Domingo',
 };
 
+// Rotulo alternativo mostrado pro aluno em "Meu treino": cada dia vira uma
+// letra de treino (Treino A, Treino B...) em vez do nome do dia da semana.
+export const WORKOUT_LETTER_LABELS: Record<Weekday, string> = {
+  MONDAY: 'Treino A',
+  TUESDAY: 'Treino B',
+  WEDNESDAY: 'Treino C',
+  THURSDAY: 'Treino D',
+  FRIDAY: 'Treino E',
+  SATURDAY: 'Treino F',
+  SUNDAY: 'Treino G',
+};
+
 export type WorkoutEntry = {
   id: string;
   sets: number;
