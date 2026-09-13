@@ -40,7 +40,7 @@ export class ResetPasswordService {
             },
         });
 
-        const token = signToken(updatedUser.id);
+        const token = signToken(updatedUser.id, "STUDENT");
 
         return {
             user: {

@@ -8,6 +8,7 @@ const usersController = new UsersController();
 
 usersRoutes.post("/", usersController.create);
 usersRoutes.get("/me", ensureAuthenticated, usersController.me);
+usersRoutes.patch("/me/professional", ensureAuthenticated, usersController.linkProfessional);
 usersRoutes.post("/verify", usersController.verify);
 usersRoutes.post("/resend-verification", usersController.resendVerification);
 usersRoutes.post("/forgot-password", usersController.forgotPassword);

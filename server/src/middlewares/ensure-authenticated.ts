@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { verifyToken } from "../utils/jwt.js";
+import { verifyToken, type ActorRole } from "../utils/jwt.js";
 
 export function ensureAuthenticated(req: Request, res: Response, next: NextFunction): void {
     const authHeader = req.headers.authorization;
@@ -17,9 +17,23 @@ export function ensureAuthenticated(req: Request, res: Response, next: NextFunct
     }
 
     try {
-        req.userId = verifyToken(token);
+        const { id, role } = verifyToken(token);
+        req.userId = id;
+        req.userRole = role;
         next();
     } catch {
         res.status(401).json({ message: "Invalid or expired token" });
     }
+}
+
+// Usar depois de ensureAuthenticated, para restringir uma rota a determinados papeis.
+export function restrictTo(...allowedRoles: ActorRole[]) {
+    return (req: Request, res: Response, next: NextFunction): void => {
+        if (!allowedRoles.includes(req.userRole)) {
+            res.status(403).json({ message: "Access denied for this actor type" });
+            return;
+        }
+
+        next();
+    };
 }

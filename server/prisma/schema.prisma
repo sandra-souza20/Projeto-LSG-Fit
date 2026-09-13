@@ -17,12 +17,45 @@ model User {
   verificationCodeExpiresAt DateTime? @map("verification_code_expires_at")
   resetPasswordCode String? @map("reset_password_code")
   resetPasswordCodeExpiresAt DateTime? @map("reset_password_code_expires_at")
+  professionalId String? @map("professional_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
 
+  professional Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
   workoutEntries WorkoutEntry[]
 
   @@map("users")
+}
+
+// Corresponde ao ator "Professor" do DER: cada Professional pode estar vinculado
+// a uma Gym (relacao Contrata) e orienta varios alunos (relacao Orienta).
+model Professional {
+  id String @id @default(uuid()) @db.Uuid
+  name String
+  email String @unique
+  password String
+  gymId String? @map("gym_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
+
+  gym Gym? @relation(fields: [gymId], references: [id], onDelete: SetNull)
+  students User[]
+
+  @@map("professionals")
+}
+
+// Corresponde ao ator "Academia" do DER.
+model Gym {
+  id String @id @default(uuid()) @db.Uuid
+  name String
+  email String @unique
+  password String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
+
+  professionals Professional[]
+
+  @@map("gyms")
 }
 
 model Exercise {

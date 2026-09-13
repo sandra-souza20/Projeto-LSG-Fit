@@ -35,7 +35,7 @@ export class VerifyEmailService {
             },
         });
 
-        const token = signToken(verifiedUser.id);
+        const token = signToken(verifiedUser.id, "STUDENT");
 
         return {
             user: {

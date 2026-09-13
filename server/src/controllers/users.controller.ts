@@ -4,7 +4,7 @@ import { VerifyEmailService } from "../services/verify-email.service.js";
 import { ResendVerificationCodeService } from "../services/resend-verification-code.service.js";
 import { RequestPasswordResetService } from "../services/request-password-reset.service.js";
 import { ResetPasswordService } from "../services/reset-password.service.js";
-import { handleError } from "../utils/app-error.js";
+import { AppError, handleError } from "../utils/app-error.js";
 import { prisma } from "../database/prisma.js";
 
 export class UsersController {
@@ -27,9 +27,38 @@ export class UsersController {
             id: user.id,
             name: user.name,
             email: user.email,
+            professionalId: user.professionalId,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,
         });
+    }
+
+    async linkProfessional(req: Request, res: Response): Promise<Response> {
+        try {
+            const { professionalId } = req.body as { professionalId: string | null };
+
+            if (professionalId) {
+                const professional = await prisma.professional.findUnique({ where: { id: professionalId } });
+
+                if (!professional) {
+                    throw new AppError("Profissional não encontrado.", 404);
+                }
+            }
+
+            const user = await prisma.user.update({
+                where: { id: req.userId },
+                data: { professionalId: professionalId ?? null },
+            });
+
+            return res.status(200).json({
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                professionalId: user.professionalId,
+            });
+        } catch (error) {
+            return handleError(error, res);
+        }
     }
 
     async verify(req: Request, res: Response): Promise<Response> {

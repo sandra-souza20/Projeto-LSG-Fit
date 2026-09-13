@@ -26,7 +26,7 @@ export class AuthenticateUserService {
             throw new AppError("Confirme seu e-mail antes de entrar.", 403, "EMAIL_NOT_VERIFIED");
         }
 
-        const token = signToken(user.id);
+        const token = signToken(user.id, "STUDENT");
 
         return {
             user: {
