@@ -23,6 +23,7 @@ model User {
 
   professional Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
   workoutEntries WorkoutEntry[]
+  physicalAssessments PhysicalAssessment[]
 
   @@map("users")
 }
@@ -40,6 +41,7 @@ model Professional {
 
   gym Gym? @relation(fields: [gymId], references: [id], onDelete: SetNull)
   students User[]
+  recordedAssessments PhysicalAssessment[]
 
   @@map("professionals")
 }
@@ -101,4 +103,26 @@ model WorkoutEntry {
 
   @@unique([userId, exerciseId, dayOfWeek])
   @@map("workout_entries")
+}
+
+// RF07: registro de evolucao fisica do aluno (peso e medidas), que pode ser
+// preenchido tanto pelo proprio aluno quanto pelo profissional vinculado.
+model PhysicalAssessment {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  recordedByProfessionalId String? @map("recorded_by_professional_id") @db.Uuid
+  weight Float
+  height Float?
+  chest Float?
+  waist Float?
+  hip Float?
+  arm Float?
+  thigh Float?
+  notes String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recordedByProfessional Professional? @relation(fields: [recordedByProfessionalId], references: [id], onDelete: SetNull)
+
+  @@map("physical_assessments")
 }

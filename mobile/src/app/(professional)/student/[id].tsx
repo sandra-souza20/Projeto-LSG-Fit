@@ -3,6 +3,9 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AddAssessmentModal } from '@/components/physical-assessment/add-assessment-modal';
+import { AssessmentHistoryList } from '@/components/physical-assessment/assessment-history-list';
+import { PrimaryButton } from '@/components/primary-button';
 import { AddExerciseModal } from '@/components/workout/add-exercise-modal';
 import { EditEntryModal } from '@/components/workout/edit-entry-modal';
 import { ExerciseCatalogItem } from '@/components/workout/exercise-catalog-item';
@@ -10,18 +13,26 @@ import { WorkoutDaySection } from '@/components/workout/workout-day-section';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { useStudentPhysicalAssessments } from '@/hooks/use-student-physical-assessments';
 import { useStudentWorkoutPlan } from '@/hooks/use-student-workout-plan';
 import { useTheme } from '@/hooks/use-theme';
 import type { Exercise } from '@/types/exercise';
+import type { PhysicalAssessmentInput } from '@/types/physical-assessment';
 import type { Weekday, WorkoutEntry } from '@/types/workout';
 
-type Tab = 'plan' | 'catalog';
+type Tab = 'plan' | 'catalog' | 'assessments';
 
 export default function StudentWorkoutScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { id, name } = useLocalSearchParams<{ id: string; name?: string }>();
   const { plan, exercises, isLoading, error, addEntry, removeEntry, updateEntry } = useStudentWorkoutPlan(id);
+  const {
+    assessments,
+    isLoading: isLoadingAssessments,
+    error: assessmentsError,
+    addAssessment,
+  } = useStudentPhysicalAssessments(id);
   const [tab, setTab] = useState<Tab>('plan');
   const [search, setSearch] = useState('');
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
@@ -30,6 +41,9 @@ export default function StudentWorkoutScreen() {
   const [editingEntry, setEditingEntry] = useState<WorkoutEntry | null>(null);
   const [isEditSubmitting, setIsEditSubmitting] = useState(false);
   const [editFormError, setEditFormError] = useState<string | null>(null);
+  const [isAssessmentModalVisible, setIsAssessmentModalVisible] = useState(false);
+  const [isAssessmentSubmitting, setIsAssessmentSubmitting] = useState(false);
+  const [assessmentFormError, setAssessmentFormError] = useState<string | null>(null);
 
   const filteredExercises = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -70,6 +84,19 @@ export default function StudentWorkoutScreen() {
     }
   }
 
+  async function handleConfirmAssessment(input: PhysicalAssessmentInput) {
+    setIsAssessmentSubmitting(true);
+    setAssessmentFormError(null);
+    try {
+      await addAssessment(input);
+      setIsAssessmentModalVisible(false);
+    } catch (err) {
+      setAssessmentFormError(err instanceof Error ? err.message : 'Não foi possível salvar a avaliação.');
+    } finally {
+      setIsAssessmentSubmitting(false);
+    }
+  }
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
@@ -96,9 +123,32 @@ export default function StudentWorkoutScreen() {
               </ThemedText>
             </ThemedView>
           </Pressable>
+          <Pressable style={styles.tabButtonTouchable} onPress={() => setTab('assessments')}>
+            <ThemedView type={tab === 'assessments' ? 'accent' : 'background'} style={styles.tabButtonInner}>
+              <ThemedText type="smallBold" themeColor={tab === 'assessments' ? 'accentText' : 'textSecondary'}>
+                Avaliações
+              </ThemedText>
+            </ThemedView>
+          </Pressable>
         </View>
 
-        {isLoading ? (
+        {tab === 'assessments' ? (
+          isLoadingAssessments ? (
+            <ActivityIndicator color={theme.accent} style={styles.loading} />
+          ) : assessmentsError ? (
+            <ThemedText type="small" themeColor="danger">
+              {assessmentsError}
+            </ThemedText>
+          ) : (
+            <ScrollView
+              style={styles.scroll}
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled">
+              <PrimaryButton label="Registrar avaliação" onPress={() => setIsAssessmentModalVisible(true)} />
+              <AssessmentHistoryList assessments={assessments} />
+            </ScrollView>
+          )
+        ) : isLoading ? (
           <ActivityIndicator color={theme.accent} style={styles.loading} />
         ) : error ? (
           <ThemedText type="small" themeColor="danger">
@@ -169,6 +219,17 @@ export default function StudentWorkoutScreen() {
           setEditFormError(null);
         }}
         onConfirm={handleConfirmEdit}
+      />
+
+      <AddAssessmentModal
+        visible={isAssessmentModalVisible}
+        isSubmitting={isAssessmentSubmitting}
+        serverError={assessmentFormError}
+        onClose={() => {
+          setIsAssessmentModalVisible(false);
+          setAssessmentFormError(null);
+        }}
+        onConfirm={handleConfirmAssessment}
       />
     </ThemedView>
   );

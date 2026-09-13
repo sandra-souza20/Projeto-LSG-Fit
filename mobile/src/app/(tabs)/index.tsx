@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Platform, Pressable, StyleSheet } from 'react-native';
 
@@ -9,11 +10,18 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
+import { usePhysicalAssessments } from '@/hooks/use-physical-assessments';
 import { useProfessionals, type ProfessionalSummary } from '@/hooks/use-professionals';
 
+function formatWeight(weight: number) {
+  return Number.isInteger(weight) ? String(weight) : String(weight).replace('.', ',');
+}
+
 export default function HomeScreen() {
+  const router = useRouter();
   const { user, signOut, linkProfessional } = useAuth();
   const { professionals } = useProfessionals();
+  const { assessments, reload: reloadAssessments } = usePhysicalAssessments();
   const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
   const [isSelectModalVisible, setIsSelectModalVisible] = useState(false);
   const [isLinking, setIsLinking] = useState(false);
@@ -22,6 +30,12 @@ export default function HomeScreen() {
   const currentProfessional = useMemo(
     () => professionals.find((professional) => professional.id === user?.professionalId) ?? null,
     [professionals, user?.professionalId],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      reloadAssessments();
+    }, [reloadAssessments]),
   );
 
   async function handleSelectProfessional(professional: ProfessionalSummary) {
@@ -76,6 +90,25 @@ export default function HomeScreen() {
               </Pressable>
             </>
           )}
+        </ThemedView>
+
+        <ThemedView type="card" style={styles.professionalCard}>
+          <ThemedText type="smallBold">Avaliação física</ThemedText>
+          {assessments.length > 0 ? (
+            <ThemedText type="small" themeColor="textSecondary">
+              Último registro: {formatWeight(assessments[0]!.weight)}kg em{' '}
+              {new Date(assessments[0]!.createdAt).toLocaleDateString('pt-BR')}
+            </ThemedText>
+          ) : (
+            <ThemedText type="small" themeColor="textSecondary">
+              Nenhuma avaliação registrada ainda.
+            </ThemedText>
+          )}
+          <Pressable hitSlop={8} onPress={() => router.push('/physical-assessments')}>
+            <ThemedText type="link" themeColor="accent">
+              Ver histórico e registrar avaliação
+            </ThemedText>
+          </Pressable>
         </ThemedView>
       </SafeAreaView>
 

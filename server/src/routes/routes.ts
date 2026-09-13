@@ -5,6 +5,7 @@ import { exercisesRoutes } from "./exercises.route.js";
 import { workoutPlanRoutes } from "./workout-plan.route.js";
 import { professionalsRoutes } from "./professionals.route.js";
 import { gymsRoutes } from "./gyms.route.js";
+import { physicalAssessmentsRoutes } from "./physical-assessments.route.js";
 
 export const routes = Router();
 
@@ -14,6 +15,7 @@ routes.use("/exercises", exercisesRoutes);
 routes.use("/workout-plan", workoutPlanRoutes);
 routes.use("/professionals", professionalsRoutes);
 routes.use("/gyms", gymsRoutes);
+routes.use("/physical-assessments", physicalAssessmentsRoutes);
 routes.get("/health", async (req, res) => {
     return res.status(200).json({
         message: "Server is up and running"
