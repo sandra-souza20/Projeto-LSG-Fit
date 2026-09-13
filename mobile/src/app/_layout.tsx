@@ -10,7 +10,7 @@ import { useTheme } from '@/hooks/use-theme';
 SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, role } = useAuth();
   const theme = useTheme();
 
   if (isLoading) {
@@ -26,8 +26,11 @@ function RootNavigator() {
       <Stack.Protected guard={!isAuthenticated}>
         <Stack.Screen name="(auth)" />
       </Stack.Protected>
-      <Stack.Protected guard={isAuthenticated}>
+      <Stack.Protected guard={isAuthenticated && role === 'STUDENT'}>
         <Stack.Screen name="(tabs)" />
+      </Stack.Protected>
+      <Stack.Protected guard={isAuthenticated && role === 'PROFESSIONAL'}>
+        <Stack.Screen name="(professional)" />
       </Stack.Protected>
     </Stack>
   );
