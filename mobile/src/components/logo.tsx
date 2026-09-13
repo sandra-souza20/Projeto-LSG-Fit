@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from './themed-text';
@@ -12,7 +13,11 @@ export function Logo({ withTagline = true }: LogoProps) {
   return (
     <View style={styles.container}>
       <View style={styles.brandRow}>
-        <ThemedText style={styles.paw}>🐾</ThemedText>
+        <Image
+          source={require('@/assets/images/dumbbell-icon.png')}
+          style={styles.icon}
+          contentFit="contain"
+        />
         <ThemedText style={styles.brandText}>
           LSG <ThemedText themeColor="accent" style={styles.brandText}>FIT</ThemedText>
         </ThemedText>
@@ -36,8 +41,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.one,
   },
-  paw: {
-    fontSize: 24,
+  icon: {
+    width: 36,
+    height: 46,
   },
   brandText: {
     fontSize: 28,
