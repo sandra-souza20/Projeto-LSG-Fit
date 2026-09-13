@@ -12,7 +12,7 @@ import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/th
 import { useTheme } from '@/hooks/use-theme';
 import { useWorkoutPlan } from '@/hooks/use-workout-plan';
 import type { Exercise } from '@/types/exercise';
-import { WORKOUT_LETTER_LABELS, type WorkoutEntry } from '@/types/workout';
+import { WORKOUT_LETTERS, type WorkoutEntry } from '@/types/workout';
 
 type Tab = 'plan' | 'catalog';
 
@@ -25,6 +25,8 @@ export default function WorkoutsScreen() {
   const [editingEntry, setEditingEntry] = useState<WorkoutEntry | null>(null);
   const [isEditSubmitting, setIsEditSubmitting] = useState(false);
   const [editFormError, setEditFormError] = useState<string | null>(null);
+
+  const activeDays = useMemo(() => plan.filter((day) => day.entries.length > 0), [plan]);
 
   const filteredExercises = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -84,20 +86,26 @@ export default function WorkoutsScreen() {
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled">
             {tab === 'plan' ? (
-              plan.map((day) => (
-                <WorkoutDaySection
-                  key={day.dayOfWeek}
-                  day={day}
-                  label={WORKOUT_LETTER_LABELS[day.dayOfWeek]}
-                  collapsible
-                  numbered
-                  editLabel="Carga"
-                  onEditEntry={(entry) => {
-                    setEditFormError(null);
-                    setEditingEntry(entry);
-                  }}
-                />
-              ))
+              activeDays.length === 0 ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  Seu profissional ainda não montou nenhum treino para você.
+                </ThemedText>
+              ) : (
+                activeDays.map((day, index) => (
+                  <WorkoutDaySection
+                    key={day.dayOfWeek}
+                    day={day}
+                    label={`Treino ${WORKOUT_LETTERS[index]}`}
+                    collapsible
+                    numbered
+                    editLabel="Carga"
+                    onEditEntry={(entry) => {
+                      setEditFormError(null);
+                      setEditingEntry(entry);
+                    }}
+                  />
+                ))
+              )
             ) : (
               <>
                 <ThemedText type="small" themeColor="textSecondary">
