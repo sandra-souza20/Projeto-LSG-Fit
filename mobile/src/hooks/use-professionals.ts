@@ -7,7 +7,12 @@ export type ProfessionalSummary = {
   id: string;
   name: string;
   email: string;
+  phone: string | null;
+  specialty: string | null;
+  bio: string | null;
   gymId: string | null;
+  gym: { id: string; name: string } | null;
+  studentsCount: number;
 };
 
 export function useProfessionals() {

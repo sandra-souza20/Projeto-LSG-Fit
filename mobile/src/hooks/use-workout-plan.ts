@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useAuth } from '@/contexts/auth-context';
 import { apiRequest } from '@/services/api';
@@ -11,11 +11,14 @@ export function useWorkoutPlan() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Depois da primeira carga, recargas (ex.: ao voltar para a tela) acontecem
+  // sem trocar a lista pelo indicador de carregamento.
+  const hasLoaded = useRef(false);
 
   const load = useCallback(async () => {
     if (!token) return;
 
-    setIsLoading(true);
+    if (!hasLoaded.current) setIsLoading(true);
     setError(null);
     try {
       const [planResult, exercisesResult] = await Promise.all([
@@ -24,6 +27,7 @@ export function useWorkoutPlan() {
       ]);
       setPlan(planResult);
       setExercises(exercisesResult);
+      hasLoaded.current = true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível carregar seu treino.');
     } finally {

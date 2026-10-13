@@ -5,14 +5,14 @@ export function ensureAuthenticated(req: Request, res: Response, next: NextFunct
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
-        res.status(401).json({ message: "Missing authorization token" });
+        res.status(401).json({ message: "Sessão não informada. Entre novamente." });
         return;
     }
 
     const [, token] = authHeader.split(" ");
 
     if (!token) {
-        res.status(401).json({ message: "Invalid authorization token" });
+        res.status(401).json({ message: "Sessão inválida. Entre novamente." });
         return;
     }
 
@@ -22,7 +22,7 @@ export function ensureAuthenticated(req: Request, res: Response, next: NextFunct
         req.userRole = role;
         next();
     } catch {
-        res.status(401).json({ message: "Invalid or expired token" });
+        res.status(401).json({ message: "Sessão inválida ou expirada. Entre novamente." });
     }
 }
 
@@ -30,7 +30,7 @@ export function ensureAuthenticated(req: Request, res: Response, next: NextFunct
 export function restrictTo(...allowedRoles: ActorRole[]) {
     return (req: Request, res: Response, next: NextFunction): void => {
         if (!allowedRoles.includes(req.userRole)) {
-            res.status(403).json({ message: "Access denied for this actor type" });
+            res.status(403).json({ message: "Acesso negado para este tipo de conta." });
             return;
         }
 

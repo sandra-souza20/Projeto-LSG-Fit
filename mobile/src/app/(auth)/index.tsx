@@ -1,23 +1,32 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 
 import { AuthCard } from '@/components/auth-card';
 import { AuthScreen } from '@/components/auth-screen';
 import { PrimaryButton } from '@/components/primary-button';
+import { SegmentedControl } from '@/components/segmented-control';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
-import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/services/api';
 
-type LoginMode = 'student' | 'professional';
+type LoginMode = 'student' | 'professional' | 'gym';
+
+const REGISTER_ROUTES = {
+  student: '/register',
+  professional: '/professional-register',
+  gym: '/gym-register',
+} as const;
+
+const MODE_OPTIONS: { value: LoginMode; label: string }[] = [
+  { value: 'student', label: 'Aluno' },
+  { value: 'professional', label: 'Profissional' },
+  { value: 'gym', label: 'Academia' },
+];
 
 export default function LoginScreen() {
-  const { signIn, professionalSignIn } = useAuth();
-  const theme = useTheme();
+  const { signIn, professionalSignIn, gymSignIn } = useAuth();
   const router = useRouter();
   const [mode, setMode] = useState<LoginMode>('student');
   const [email, setEmail] = useState('');
@@ -39,6 +48,8 @@ export default function LoginScreen() {
     try {
       if (mode === 'professional') {
         await professionalSignIn({ email: trimmedEmail, password });
+      } else if (mode === 'gym') {
+        await gymSignIn({ email: trimmedEmail, password });
       } else {
         await signIn({ email: trimmedEmail, password });
       }
@@ -61,7 +72,7 @@ export default function LoginScreen() {
         footer={
           <Pressable
             hitSlop={8}
-            onPress={() => router.push(mode === 'professional' ? '/professional-register' : '/register')}>
+            onPress={() => router.push(REGISTER_ROUTES[mode])}>
             <ThemedText type="small" themeColor="textSecondary" style={styles.footerText}>
               Não tem uma conta?{' '}
               <ThemedText type="link" themeColor="accent">
@@ -70,22 +81,7 @@ export default function LoginScreen() {
             </ThemedText>
           </Pressable>
         }>
-        <View style={[styles.modeSwitch, { borderColor: theme.border }]}>
-          <Pressable style={styles.modeButtonTouchable} onPress={() => setMode('student')}>
-            <ThemedView type={mode === 'student' ? 'accent' : 'background'} style={styles.modeButtonInner}>
-              <ThemedText type="smallBold" themeColor={mode === 'student' ? 'accentText' : 'textSecondary'}>
-                Aluno
-              </ThemedText>
-            </ThemedView>
-          </Pressable>
-          <Pressable style={styles.modeButtonTouchable} onPress={() => setMode('professional')}>
-            <ThemedView type={mode === 'professional' ? 'accent' : 'background'} style={styles.modeButtonInner}>
-              <ThemedText type="smallBold" themeColor={mode === 'professional' ? 'accentText' : 'textSecondary'}>
-                Profissional
-              </ThemedText>
-            </ThemedView>
-          </Pressable>
-        </View>
+        <SegmentedControl options={MODE_OPTIONS} value={mode} onChange={setMode} />
 
         <TextField
           label="E-mail"
@@ -122,21 +118,5 @@ const styles = StyleSheet.create({
   },
   footerText: {
     textAlign: 'center',
-  },
-  modeSwitch: {
-    flexDirection: 'row',
-    borderWidth: 1,
-    borderRadius: Radius.pill,
-    padding: Spacing.half,
-    gap: Spacing.half,
-  },
-  modeButtonTouchable: {
-    flex: 1,
-  },
-  modeButtonInner: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.two,
-    borderRadius: Radius.pill,
   },
 });

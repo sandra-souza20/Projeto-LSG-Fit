@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { FrequencyCalendar } from '@/components/frequency-calendar';
 import { AddAssessmentModal } from '@/components/physical-assessment/add-assessment-modal';
 import { AssessmentHistoryList } from '@/components/physical-assessment/assessment-history-list';
 import { PrimaryButton } from '@/components/primary-button';
@@ -54,7 +55,13 @@ export default function StudentWorkoutScreen() {
     );
   }, [exercises, search]);
 
-  async function handleConfirmAdd(input: { dayOfWeek: Weekday; sets: number; reps: number; weight: number | null }) {
+  async function handleConfirmAdd(input: {
+    dayOfWeek: Weekday;
+    sets: number;
+    reps: number;
+    weight: number | null;
+    restSeconds: number | null;
+  }) {
     if (!selectedExercise) return;
 
     setIsSubmitting(true);
@@ -69,7 +76,12 @@ export default function StudentWorkoutScreen() {
     }
   }
 
-  async function handleConfirmEdit(input: { sets: number; reps: number; weight: number | null }) {
+  async function handleConfirmEdit(input: {
+    sets: number;
+    reps: number;
+    weight: number | null;
+    restSeconds: number | null;
+  }) {
     if (!editingEntry) return;
 
     setIsEditSubmitting(true);
@@ -126,7 +138,7 @@ export default function StudentWorkoutScreen() {
           <Pressable style={styles.tabButtonTouchable} onPress={() => setTab('assessments')}>
             <ThemedView type={tab === 'assessments' ? 'accent' : 'background'} style={styles.tabButtonInner}>
               <ThemedText type="smallBold" themeColor={tab === 'assessments' ? 'accentText' : 'textSecondary'}>
-                Avaliações
+                Evolução
               </ThemedText>
             </ThemedView>
           </Pressable>
@@ -144,6 +156,9 @@ export default function StudentWorkoutScreen() {
               style={styles.scroll}
               contentContainerStyle={styles.scrollContent}
               keyboardShouldPersistTaps="handled">
+              <ThemedText type="smallBold">Frequência</ThemedText>
+              <FrequencyCalendar studentId={id} />
+              <ThemedText type="smallBold">Avaliações físicas</ThemedText>
               <PrimaryButton label="Registrar avaliação" onPress={() => setIsAssessmentModalVisible(true)} />
               <AssessmentHistoryList assessments={assessments} />
             </ScrollView>

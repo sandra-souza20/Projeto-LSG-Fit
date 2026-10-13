@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
+import { PrimaryButton } from '@/components/primary-button';
 import { ExerciseMedia } from '@/components/workout/exercise-media';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { WEEKDAY_LABELS, type WorkoutDay, type WorkoutEntry } from '@/types/workout';
+import { formatRest, WEEKDAY_LABELS, type WorkoutDay, type WorkoutEntry } from '@/types/workout';
 
 type WorkoutDaySectionProps = {
   day: WorkoutDay;
@@ -21,6 +22,8 @@ type WorkoutDaySectionProps = {
   collapsible?: boolean;
   // Quando true, prefixa cada exercicio com sua posicao (1., 2., 3.).
   numbered?: boolean;
+  // Quando informado, mostra o botao para abrir a tela de execucao do treino.
+  onStart?: () => void;
 };
 
 function formatWeight(weight: number) {
@@ -35,6 +38,7 @@ export function WorkoutDaySection({
   label,
   collapsible = false,
   numbered = false,
+  onStart,
 }: WorkoutDaySectionProps) {
   const theme = useTheme();
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -86,6 +90,7 @@ export function WorkoutDaySection({
                       <ThemedText type="small" themeColor="textSecondary">
                         {entry.sets}x{entry.reps}
                         {entry.weight != null ? ` · ${formatWeight(entry.weight)}kg` : ''}
+                        {entry.restSeconds != null ? ` · ${formatRest(entry.restSeconds)} desc.` : ''}
                       </ThemedText>
                       <ThemedText type="small" themeColor="accent">
                         {isExpanded ? '▴' : '▾'}
@@ -115,6 +120,7 @@ export function WorkoutDaySection({
                 </View>
               );
             })}
+            {onStart && <PrimaryButton label={`Iniciar ${headerLabel}`} onPress={onStart} />}
           </View>
         ))}
     </ThemedView>

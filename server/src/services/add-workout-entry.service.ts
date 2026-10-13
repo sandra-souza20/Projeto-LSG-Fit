@@ -9,6 +9,7 @@ type IRequestDto = {
     sets: number;
     reps: number;
     weight?: number | null;
+    restSeconds?: number | null;
 };
 
 export class AddWorkoutEntryService {
@@ -23,6 +24,10 @@ export class AddWorkoutEntryService {
 
         if (dto.weight !== undefined && dto.weight !== null && dto.weight < 0) {
             throw new AppError("Informe um peso válido.");
+        }
+
+        if (dto.restSeconds !== undefined && dto.restSeconds !== null && dto.restSeconds < 0) {
+            throw new AppError("Informe um tempo de descanso válido.");
         }
 
         const exercise = await prisma.exercise.findUnique({ where: { id: dto.exerciseId } });
@@ -58,6 +63,7 @@ export class AddWorkoutEntryService {
                 sets: dto.sets,
                 reps: dto.reps,
                 weight: dto.weight ?? null,
+                restSeconds: dto.restSeconds ?? null,
                 order: (lastEntry?.order ?? -1) + 1,
             },
             include: { exercise: true },

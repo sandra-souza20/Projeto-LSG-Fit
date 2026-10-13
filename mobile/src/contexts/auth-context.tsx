@@ -13,6 +13,9 @@ import { apiRequest } from '@/services/api';
 import type {
   ActorRole,
   AuthResponse,
+  Gym,
+  GymAuthResponse,
+  GymRegisterResponse,
   MessageResponse,
   Professional,
   ProfessionalAuthResponse,
@@ -26,6 +29,17 @@ const ROLE_KEY = 'lsgfit.role';
 
 type SignInInput = { email: string; password: string };
 type SignUpInput = { name: string; email: string; password: string; confirmPassword: string };
+type ProfessionalSignUpInput = SignUpInput & { phone?: string; specialty?: string; gymId?: string | null };
+type GymSignUpInput = SignUpInput & { phone?: string; address?: string };
+type UpdateUserInput = { name?: string; phone?: string | null };
+type UpdateProfessionalInput = {
+  name?: string;
+  phone?: string | null;
+  specialty?: string | null;
+  bio?: string | null;
+  gymId?: string | null;
+};
+type UpdateGymInput = { name?: string; phone?: string | null; address?: string | null };
 type VerifyEmailInput = { email: string; code: string };
 type ResendVerificationInput = { email: string };
 type RequestPasswordResetInput = { email: string };
@@ -35,19 +49,25 @@ type AuthContextValue = {
   role: ActorRole | null;
   user: User | null;
   professional: Professional | null;
+  gym: Gym | null;
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   signIn: (input: SignInInput) => Promise<void>;
-  signUp: (input: SignUpInput) => Promise<void>;
+  signUp: (input: SignUpInput) => Promise<{ needsVerification: boolean }>;
   signOut: () => Promise<void>;
   verifyEmail: (input: VerifyEmailInput) => Promise<void>;
   resendVerificationCode: (input: ResendVerificationInput) => Promise<void>;
   requestPasswordReset: (input: RequestPasswordResetInput) => Promise<void>;
   resetPassword: (input: ResetPasswordInput) => Promise<void>;
   professionalSignIn: (input: SignInInput) => Promise<void>;
-  professionalSignUp: (input: SignUpInput) => Promise<void>;
+  professionalSignUp: (input: ProfessionalSignUpInput) => Promise<void>;
+  gymSignIn: (input: SignInInput) => Promise<void>;
+  gymSignUp: (input: GymSignUpInput) => Promise<void>;
   linkProfessional: (professionalId: string | null) => Promise<void>;
+  updateUser: (input: UpdateUserInput) => Promise<void>;
+  updateProfessional: (input: UpdateProfessionalInput) => Promise<void>;
+  updateGym: (input: UpdateGymInput) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -56,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<ActorRole | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [professional, setProfessional] = useState<Professional | null>(null);
+  const [gym, setGym] = useState<Gym | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -69,7 +90,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // trata-las como STUDENT mantem quem ja estava logado autenticado.
         const storedRole = ((await AsyncStorage.getItem(ROLE_KEY)) as ActorRole | null) ?? 'STUDENT';
 
-        if (storedRole === 'PROFESSIONAL') {
+        if (storedRole === 'GYM') {
+          const restoredGym = await apiRequest<Gym>('/gyms/me', { token: storedToken });
+          setToken(storedToken);
+          setRole('GYM');
+          setGym(restoredGym);
+        } else if (storedRole === 'PROFESSIONAL') {
           const restoredProfessional = await apiRequest<Professional>('/professionals/me', { token: storedToken });
           setToken(storedToken);
           setRole('PROFESSIONAL');
@@ -97,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRole('STUDENT');
     setUser(result.user);
     setProfessional(null);
+    setGym(null);
   }, []);
 
   const persistProfessionalSession = useCallback(async (result: ProfessionalAuthResponse) => {
@@ -106,6 +133,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRole('PROFESSIONAL');
     setProfessional(result.professional);
     setUser(null);
+    setGym(null);
+  }, []);
+
+  const persistGymSession = useCallback(async (result: GymAuthResponse) => {
+    await AsyncStorage.setItem(TOKEN_KEY, result.token);
+    await AsyncStorage.setItem(ROLE_KEY, 'GYM');
+    setToken(result.token);
+    setRole('GYM');
+    setGym(result.gym);
+    setUser(null);
+    setProfessional(null);
   }, []);
 
   const signIn = useCallback(
@@ -116,11 +154,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [persistStudentSession],
   );
 
-  const signUp = useCallback(async (input: SignUpInput) => {
-    // Account is created unverified: no session is persisted until the
-    // e-mail code is confirmed via verifyEmail.
-    await apiRequest<RegisterResponse>('/users', { method: 'POST', body: input });
-  }, []);
+  const signUp = useCallback(
+    async (input: SignUpInput) => {
+      // Account is created unverified: no session is persisted until the
+      // e-mail code is confirmed via verifyEmail. When the server skips
+      // e-mail verification it returns a token and the session starts here.
+      const result = await apiRequest<RegisterResponse>('/users', { method: 'POST', body: input });
+
+      if (result.token) {
+        await persistStudentSession({ user: result.user, token: result.token });
+        return { needsVerification: false };
+      }
+
+      return { needsVerification: true };
+    },
+    [persistStudentSession],
+  );
 
   const signOut = useCallback(async () => {
     await AsyncStorage.multiRemove([TOKEN_KEY, ROLE_KEY]);
@@ -128,6 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRole(null);
     setUser(null);
     setProfessional(null);
+    setGym(null);
   }, []);
 
   const verifyEmail = useCallback(
@@ -166,13 +216,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const professionalSignUp = useCallback(
-    async (input: SignUpInput) => {
+    async (input: ProfessionalSignUpInput) => {
       // Professionals have no e-mail verification step yet, so signing up
       // logs the account in right away.
       await apiRequest<ProfessionalRegisterResponse>('/professionals', { method: 'POST', body: input });
       await professionalSignIn({ email: input.email, password: input.password });
     },
     [professionalSignIn],
+  );
+
+  // Academias tambem nao tem confirmacao de e-mail: cadastra e ja entra.
+  const gymSignIn = useCallback(
+    async (input: SignInInput) => {
+      const result = await apiRequest<GymAuthResponse>('/gyms/sessions', { method: 'POST', body: input });
+      await persistGymSession(result);
+    },
+    [persistGymSession],
+  );
+
+  const gymSignUp = useCallback(
+    async (input: GymSignUpInput) => {
+      await apiRequest<GymRegisterResponse>('/gyms', { method: 'POST', body: input });
+      await gymSignIn({ email: input.email, password: input.password });
+    },
+    [gymSignIn],
+  );
+
+  const updateUser = useCallback(
+    async (input: UpdateUserInput) => {
+      const updated = await apiRequest<User>('/users/me', { method: 'PATCH', body: input, token });
+      setUser(updated);
+    },
+    [token],
+  );
+
+  const updateProfessional = useCallback(
+    async (input: UpdateProfessionalInput) => {
+      const updated = await apiRequest<Professional>('/professionals/me', {
+        method: 'PATCH',
+        body: input,
+        token,
+      });
+      setProfessional(updated);
+    },
+    [token],
+  );
+
+  const updateGym = useCallback(
+    async (input: UpdateGymInput) => {
+      const updated = await apiRequest<Gym>('/gyms/me', { method: 'PATCH', body: input, token });
+      setGym(updated);
+    },
+    [token],
   );
 
   const linkProfessional = useCallback(
@@ -192,6 +287,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       role,
       user,
       professional,
+      gym,
       token,
       isLoading,
       isAuthenticated: Boolean(token && role),
@@ -204,12 +300,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       resetPassword,
       professionalSignIn,
       professionalSignUp,
+      gymSignIn,
+      gymSignUp,
       linkProfessional,
+      updateUser,
+      updateProfessional,
+      updateGym,
     }),
     [
       role,
       user,
       professional,
+      gym,
       isLoading,
       token,
       signIn,
@@ -221,7 +323,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       resetPassword,
       professionalSignIn,
       professionalSignUp,
+      gymSignIn,
+      gymSignUp,
       linkProfessional,
+      updateUser,
+      updateProfessional,
+      updateGym,
     ],
   );
 

@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -18,13 +19,20 @@ type Tab = 'plan' | 'catalog';
 
 export default function WorkoutsScreen() {
   const theme = useTheme();
-  const { plan, exercises, isLoading, error, registerWeight } = useWorkoutPlan();
+  const router = useRouter();
+  const { plan, exercises, isLoading, error, registerWeight, reload } = useWorkoutPlan();
   const [tab, setTab] = useState<Tab>('plan');
   const [search, setSearch] = useState('');
   const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null);
   const [editingEntry, setEditingEntry] = useState<WorkoutEntry | null>(null);
   const [isEditSubmitting, setIsEditSubmitting] = useState(false);
   const [editFormError, setEditFormError] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      reload();
+    }, [reload]),
+  );
 
   const activeDays = useMemo(() => plan.filter((day) => day.entries.length > 0), [plan]);
 
@@ -103,6 +111,12 @@ export default function WorkoutsScreen() {
                       setEditFormError(null);
                       setEditingEntry(entry);
                     }}
+                    onStart={() =>
+                      router.push({
+                        pathname: '/workout-session',
+                        params: { day: day.dayOfWeek, letter: WORKOUT_LETTERS[index] },
+                      })
+                    }
                   />
                 ))
               )

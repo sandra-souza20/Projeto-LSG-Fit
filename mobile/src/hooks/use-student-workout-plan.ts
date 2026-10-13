@@ -39,7 +39,14 @@ export function useStudentWorkoutPlan(studentId: string) {
   }, [load]);
 
   const addEntry = useCallback(
-    async (input: { exerciseId: string; dayOfWeek: Weekday; sets: number; reps: number; weight: number | null }) => {
+    async (input: {
+      exerciseId: string;
+      dayOfWeek: Weekday;
+      sets: number;
+      reps: number;
+      weight: number | null;
+      restSeconds: number | null;
+    }) => {
       const entry = await apiRequest<WorkoutEntry>(basePath, { method: 'POST', body: input, token });
       setPlan((current) =>
         current.map((day) =>
@@ -59,7 +66,7 @@ export function useStudentWorkoutPlan(studentId: string) {
   );
 
   const updateEntry = useCallback(
-    async (id: string, input: { sets: number; reps: number; weight: number | null }) => {
+    async (id: string, input: { sets: number; reps: number; weight: number | null; restSeconds: number | null }) => {
       const updated = await apiRequest<WorkoutEntry>(`${basePath}/${id}`, {
         method: 'PATCH',
         body: input,

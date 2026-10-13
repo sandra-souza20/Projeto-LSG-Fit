@@ -36,8 +36,15 @@ export default function RegisterScreen() {
 
     setIsSubmitting(true);
     try {
-      await signUp({ name: name.trim(), email: trimmedEmail, password, confirmPassword });
-      router.push({ pathname: '/verify-email', params: { email: trimmedEmail } });
+      const { needsVerification } = await signUp({
+        name: name.trim(),
+        email: trimmedEmail,
+        password,
+        confirmPassword,
+      });
+      if (needsVerification) {
+        router.push({ pathname: '/verify-email', params: { email: trimmedEmail } });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível criar sua conta.');
     } finally {

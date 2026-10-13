@@ -12,11 +12,18 @@ professionalsRoutes.post("/", professionalsController.create);
 professionalsRoutes.post("/sessions", professionalsController.login);
 professionalsRoutes.get("/", professionalsController.listAll);
 professionalsRoutes.get("/me", ensureAuthenticated, restrictTo("PROFESSIONAL"), professionalsController.me);
+professionalsRoutes.patch("/me", ensureAuthenticated, restrictTo("PROFESSIONAL"), professionalsController.updateMe);
 professionalsRoutes.get(
     "/students",
     ensureAuthenticated,
     restrictTo("PROFESSIONAL"),
     professionalsController.students,
+);
+professionalsRoutes.get(
+    "/students/:studentId/workout-sessions",
+    ensureAuthenticated,
+    restrictTo("PROFESSIONAL"),
+    professionalsController.studentWorkoutSessions,
 );
 professionalsRoutes.use("/students/:studentId/workout-plan", professionalWorkoutPlanRoutes);
 professionalsRoutes.use(

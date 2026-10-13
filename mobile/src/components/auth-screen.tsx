@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Logo } from './logo';
+import { ThemeToggleButton } from './theme-toggle';
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
@@ -17,6 +18,9 @@ export function AuthScreen({ children }: AuthScreenProps) {
     <ThemedView style={styles.root}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <SafeAreaView style={styles.flex}>
+          <View style={styles.topBar}>
+            <ThemeToggleButton />
+          </View>
           <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
             <Logo />
             {children}
@@ -44,6 +48,11 @@ const styles = StyleSheet.create({
     gap: Spacing.five,
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.six,
+  },
+  topBar: {
+    alignItems: 'flex-end',
+    paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.two,
   },
   footerNote: {
     textAlign: 'center',

@@ -7,6 +7,7 @@ type IRequestDto = {
     sets?: number;
     reps?: number;
     weight?: number | null;
+    restSeconds?: number | null;
 };
 
 export class UpdateWorkoutEntryService {
@@ -29,12 +30,17 @@ export class UpdateWorkoutEntryService {
             throw new AppError("Informe um peso válido.");
         }
 
+        if (dto.restSeconds !== undefined && dto.restSeconds !== null && dto.restSeconds < 0) {
+            throw new AppError("Informe um tempo de descanso válido.");
+        }
+
         return prisma.workoutEntry.update({
             where: { id: dto.id },
             data: {
                 sets: dto.sets ?? entry.sets,
                 reps: dto.reps ?? entry.reps,
                 weight: dto.weight !== undefined ? dto.weight : entry.weight,
+                restSeconds: dto.restSeconds !== undefined ? dto.restSeconds : entry.restSeconds,
             },
             include: { exercise: true },
         });

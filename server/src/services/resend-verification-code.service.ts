@@ -12,7 +12,7 @@ export class ResendVerificationCodeService {
         const user = await prisma.user.findUnique({ where: { email: dto.email } });
 
         if (!user) {
-            throw new AppError("Invalid credentials", 401);
+            throw new AppError("Não encontramos um cadastro com esse e-mail.", 401);
         }
 
         if (user.emailVerified) {

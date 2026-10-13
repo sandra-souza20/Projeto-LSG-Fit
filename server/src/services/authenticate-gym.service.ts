@@ -13,13 +13,13 @@ export class AuthenticateGymService {
         const gym = await prisma.gym.findUnique({ where: { email: dto.email } });
 
         if (!gym) {
-            throw new AppError("Invalid credentials", 401);
+            throw new AppError("E-mail ou senha inválidos.", 401);
         }
 
         const isPasswordValid = await verify(gym.password, dto.password);
 
         if (!isPasswordValid) {
-            throw new AppError("Invalid credentials", 401);
+            throw new AppError("E-mail ou senha inválidos.", 401);
         }
 
         const token = signToken(gym.id, "GYM");
@@ -29,6 +29,8 @@ export class AuthenticateGymService {
                 id: gym.id,
                 name: gym.name,
                 email: gym.email,
+                phone: gym.phone,
+                address: gym.address,
                 createdAt: gym.createdAt,
                 updatedAt: gym.updatedAt,
             },

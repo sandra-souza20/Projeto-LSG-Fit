@@ -18,12 +18,14 @@ model User {
   resetPasswordCode String? @map("reset_password_code")
   resetPasswordCodeExpiresAt DateTime? @map("reset_password_code_expires_at")
   professionalId String? @map("professional_id") @db.Uuid
+  phone String?
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
 
   professional Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
   workoutEntries WorkoutEntry[]
   physicalAssessments PhysicalAssessment[]
+  workoutSessions WorkoutSession[]
 
   @@map("users")
 }
@@ -36,12 +38,17 @@ model Professional {
   email String @unique
   password String
   gymId String? @map("gym_id") @db.Uuid
+  // RF05: dados exibidos na "Pagina de Perfis" para o aluno contatar o profissional.
+  phone String?
+  specialty String?
+  bio String?
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
 
   gym Gym? @relation(fields: [gymId], references: [id], onDelete: SetNull)
   students User[]
   recordedAssessments PhysicalAssessment[]
+  createdExercises Exercise[]
 
   @@map("professionals")
 }
@@ -52,6 +59,8 @@ model Gym {
   name String
   email String @unique
   password String
+  phone String?
+  address String?
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
 
@@ -68,9 +77,13 @@ model Exercise {
   instructions String?
   gifUrl String? @map("gif_url")
   videoUrl String? @map("video_url")
+  // RF08: exercicios da biblioteca padrao (seed) ficam com null; os
+  // cadastrados por um profissional guardam quem os criou.
+  createdByProfessionalId String? @map("created_by_professional_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
 
+  createdByProfessional Professional? @relation(fields: [createdByProfessionalId], references: [id], onDelete: SetNull)
   workoutEntries WorkoutEntry[]
 
   @@map("exercises")
@@ -94,6 +107,8 @@ model WorkoutEntry {
   sets Int
   reps Int
   weight Float?
+  // RF03: tempo de descanso entre as series, em segundos.
+  restSeconds Int? @map("rest_seconds")
   order Int
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
@@ -103,6 +118,20 @@ model WorkoutEntry {
 
   @@unique([userId, exerciseId, dayOfWeek])
   @@map("workout_entries")
+}
+
+// RF04: cada treino concluido pelo aluno vira um registro, usado para
+// calcular a frequencia no mes (e pelo profissional, o controle de frequencia).
+model WorkoutSession {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  dayOfWeek Weekday @map("day_of_week")
+  completedAt DateTime @default(now()) @map("completed_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, completedAt])
+  @@map("workout_sessions")
 }
 
 // RF07: registro de evolucao fisica do aluno (peso e medidas), que pode ser

@@ -32,9 +32,17 @@ export type WorkoutEntry = {
   sets: number;
   reps: number;
   weight: number | null;
+  restSeconds: number | null;
   order: number;
   exercise: Exercise;
 };
+
+export function formatRest(seconds: number) {
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return rest ? `${minutes}min${String(rest).padStart(2, '0')}` : `${minutes}min`;
+}
 
 export type WorkoutDay = {
   dayOfWeek: Weekday;

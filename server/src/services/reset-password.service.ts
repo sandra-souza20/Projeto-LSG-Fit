@@ -13,7 +13,7 @@ type IRequestDto = {
 export class ResetPasswordService {
     async execute(dto: IRequestDto) {
         if (dto.password !== dto.confirmPassword) {
-            throw new AppError("Passwords do not match");
+            throw new AppError("As senhas não coincidem.");
         }
 
         const user = await prisma.user.findUnique({ where: { email: dto.email } });

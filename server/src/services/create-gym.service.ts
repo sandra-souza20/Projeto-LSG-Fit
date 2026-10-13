@@ -7,18 +7,20 @@ type IRequestDto = {
     email: string;
     password: string;
     confirmPassword: string;
+    phone?: string | null;
+    address?: string | null;
 }
 
 export class CreateGymService {
     async execute(dto: IRequestDto) {
         if (dto.password !== dto.confirmPassword) {
-            throw new AppError("Passwords do not match");
+            throw new AppError("As senhas não coincidem.");
         }
 
         const emailInUse = await prisma.gym.findUnique({ where: { email: dto.email } });
 
         if (emailInUse) {
-            throw new AppError("Email already in use");
+            throw new AppError("Este e-mail já está em uso.");
         }
 
         const hashedPassword = await hash(dto.password);
@@ -28,6 +30,8 @@ export class CreateGymService {
                 name: dto.name,
                 email: dto.email,
                 password: hashedPassword,
+                phone: dto.phone?.trim() || null,
+                address: dto.address?.trim() || null,
             },
         });
 
@@ -36,6 +40,8 @@ export class CreateGymService {
                 id: gym.id,
                 name: gym.name,
                 email: gym.email,
+                phone: gym.phone,
+                address: gym.address,
                 createdAt: gym.createdAt,
                 updatedAt: gym.updatedAt,
             },

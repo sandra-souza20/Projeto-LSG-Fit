@@ -14,7 +14,7 @@ type AddExerciseModalProps = {
   isSubmitting: boolean;
   serverError?: string | null;
   onClose: () => void;
-  onConfirm: (input: { dayOfWeek: Weekday; sets: number; reps: number; weight: number | null }) => void;
+  onConfirm: (input: { dayOfWeek: Weekday; sets: number; reps: number; weight: number | null; restSeconds: number | null }) => void;
 };
 
 export function AddExerciseModal({ exercise, isSubmitting, serverError, onClose, onConfirm }: AddExerciseModalProps) {
@@ -23,6 +23,7 @@ export function AddExerciseModal({ exercise, isSubmitting, serverError, onClose,
   const [sets, setSets] = useState('3');
   const [reps, setReps] = useState('12');
   const [weight, setWeight] = useState('');
+  const [rest, setRest] = useState('60');
   const [error, setError] = useState<string | null>(null);
 
   function handleConfirm() {
@@ -30,6 +31,7 @@ export function AddExerciseModal({ exercise, isSubmitting, serverError, onClose,
     const repsNumber = Number(reps);
     const trimmedWeight = weight.trim().replace(',', '.');
     const weightNumber = trimmedWeight ? Number(trimmedWeight) : null;
+    const restNumber = rest.trim() ? Number(rest.trim()) : null;
 
     if (!setsNumber || setsNumber < 1 || !repsNumber || repsNumber < 1) {
       setError('Informe séries e repetições válidas.');
@@ -41,8 +43,13 @@ export function AddExerciseModal({ exercise, isSubmitting, serverError, onClose,
       return;
     }
 
+    if (restNumber !== null && (!Number.isInteger(restNumber) || restNumber < 0)) {
+      setError('Informe o descanso em segundos (ex: 60).');
+      return;
+    }
+
     setError(null);
-    onConfirm({ dayOfWeek, sets: setsNumber, reps: repsNumber, weight: weightNumber });
+    onConfirm({ dayOfWeek, sets: setsNumber, reps: repsNumber, weight: weightNumber, restSeconds: restNumber });
   }
 
   return (
@@ -111,6 +118,20 @@ export function AddExerciseModal({ exercise, isSubmitting, serverError, onClose,
                 keyboardType="number-pad"
                 value={reps}
                 onChangeText={setReps}
+              />
+            </View>
+            <View style={styles.numberField}>
+              <ThemedText type="smallBold" style={styles.label}>
+                Descanso (s)
+              </ThemedText>
+              <TextInput
+                style={[
+                  styles.input,
+                  { backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.border },
+                ]}
+                keyboardType="number-pad"
+                value={rest}
+                onChangeText={setRest}
               />
             </View>
           </View>

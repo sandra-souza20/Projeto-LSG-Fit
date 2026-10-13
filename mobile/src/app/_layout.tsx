@@ -1,10 +1,13 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { ActivityIndicator, StyleSheet, useColorScheme } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { ActivityIndicator, StyleSheet } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { ThemedView } from '@/components/themed-view';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
+import { ThemePreferenceProvider } from '@/contexts/theme-context';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -28,24 +31,38 @@ function RootNavigator() {
       </Stack.Protected>
       <Stack.Protected guard={isAuthenticated && role === 'STUDENT'}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="physical-assessments" />
+        <Stack.Screen name="workout-session" />
       </Stack.Protected>
       <Stack.Protected guard={isAuthenticated && role === 'PROFESSIONAL'}>
         <Stack.Screen name="(professional)" />
+      </Stack.Protected>
+      <Stack.Protected guard={isAuthenticated && role === 'GYM'}>
+        <Stack.Screen name="(gym)" />
       </Stack.Protected>
     </Stack>
   );
 }
 
-export default function RootLayout() {
+function ThemedRoot() {
   const colorScheme = useColorScheme();
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       <AuthProvider>
         <AnimatedSplashOverlay />
         <RootNavigator />
       </AuthProvider>
     </ThemeProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <ThemePreferenceProvider>
+      <ThemedRoot />
+    </ThemePreferenceProvider>
   );
 }
 

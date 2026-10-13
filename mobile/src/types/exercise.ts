@@ -6,4 +6,5 @@ export type Exercise = {
   instructions: string | null;
   gifUrl: string | null;
   videoUrl: string | null;
+  createdByProfessionalId?: string | null;
 };

@@ -10,3 +10,5 @@ gymsRoutes.post("/", gymsController.create);
 gymsRoutes.post("/sessions", gymsController.login);
 gymsRoutes.get("/", gymsController.listAll);
 gymsRoutes.get("/me", ensureAuthenticated, restrictTo("GYM"), gymsController.me);
+gymsRoutes.patch("/me", ensureAuthenticated, restrictTo("GYM"), gymsController.updateMe);
+gymsRoutes.get("/me/professionals", ensureAuthenticated, restrictTo("GYM"), gymsController.professionals);

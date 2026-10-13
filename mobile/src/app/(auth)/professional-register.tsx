@@ -4,6 +4,7 @@ import { Pressable, StyleSheet } from 'react-native';
 
 import { AuthCard } from '@/components/auth-card';
 import { AuthScreen } from '@/components/auth-screen';
+import { GymPicker } from '@/components/gym-picker';
 import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
@@ -16,6 +17,9 @@ export default function ProfessionalRegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  const [specialty, setSpecialty] = useState('');
+  const [gymId, setGymId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -34,7 +38,15 @@ export default function ProfessionalRegisterScreen() {
 
     setIsSubmitting(true);
     try {
-      await professionalSignUp({ name: name.trim(), email: email.trim(), password, confirmPassword });
+      await professionalSignUp({
+        name: name.trim(),
+        email: email.trim(),
+        password,
+        confirmPassword,
+        phone: phone.trim(),
+        specialty: specialty.trim(),
+        gymId,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível criar sua conta.');
     } finally {
@@ -65,6 +77,21 @@ export default function ProfessionalRegisterScreen() {
           value={email}
           onChangeText={setEmail}
         />
+        <TextField
+          label="WhatsApp / telefone (opcional)"
+          placeholder="(15) 99999-9999"
+          keyboardType="phone-pad"
+          value={phone}
+          onChangeText={setPhone}
+        />
+        <TextField
+          label="Especialidade (opcional)"
+          placeholder="Ex: Hipertrofia, emagrecimento"
+          autoCapitalize="sentences"
+          value={specialty}
+          onChangeText={setSpecialty}
+        />
+        <GymPicker value={gymId} onChange={setGymId} />
         <TextField label="Senha" placeholder="••••••••" isPassword value={password} onChangeText={setPassword} />
         <TextField
           label="Confirmar senha"

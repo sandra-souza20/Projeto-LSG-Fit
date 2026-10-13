@@ -27,10 +27,42 @@ export class UsersController {
             id: user.id,
             name: user.name,
             email: user.email,
+            phone: user.phone,
             professionalId: user.professionalId,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,
         });
+    }
+
+    // RF04: o aluno pode atualizar as informacoes pessoais exibidas no perfil.
+    async updateMe(req: Request, res: Response): Promise<Response> {
+        try {
+            const { name, phone } = req.body as { name?: string; phone?: string | null };
+
+            if (name !== undefined && !name.trim()) {
+                throw new AppError("Informe o seu nome.");
+            }
+
+            const user = await prisma.user.update({
+                where: { id: req.userId },
+                data: {
+                    ...(name !== undefined ? { name: name.trim() } : {}),
+                    ...(phone !== undefined ? { phone: phone?.trim() || null } : {}),
+                },
+            });
+
+            return res.status(200).json({
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                phone: user.phone,
+                professionalId: user.professionalId,
+                createdAt: user.createdAt,
+                updatedAt: user.updatedAt,
+            });
+        } catch (error) {
+            return handleError(error, res);
+        }
     }
 
     async linkProfessional(req: Request, res: Response): Promise<Response> {

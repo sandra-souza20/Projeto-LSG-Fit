@@ -13,7 +13,7 @@ type EditEntryModalProps = {
   isSubmitting: boolean;
   serverError?: string | null;
   onClose: () => void;
-  onConfirm: (input: { sets: number; reps: number; weight: number | null }) => void;
+  onConfirm: (input: { sets: number; reps: number; weight: number | null; restSeconds: number | null }) => void;
 };
 
 export function EditEntryModal({ entry, isSubmitting, serverError, onClose, onConfirm }: EditEntryModalProps) {
@@ -21,6 +21,7 @@ export function EditEntryModal({ entry, isSubmitting, serverError, onClose, onCo
   const [sets, setSets] = useState('3');
   const [reps, setReps] = useState('12');
   const [weight, setWeight] = useState('');
+  const [rest, setRest] = useState('60');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,6 +29,7 @@ export function EditEntryModal({ entry, isSubmitting, serverError, onClose, onCo
       setSets(String(entry.sets));
       setReps(String(entry.reps));
       setWeight(entry.weight != null ? String(entry.weight).replace('.', ',') : '');
+      setRest(entry.restSeconds != null ? String(entry.restSeconds) : '');
       setError(null);
     }
   }, [entry]);
@@ -37,6 +39,7 @@ export function EditEntryModal({ entry, isSubmitting, serverError, onClose, onCo
     const repsNumber = Number(reps);
     const trimmedWeight = weight.trim().replace(',', '.');
     const weightNumber = trimmedWeight ? Number(trimmedWeight) : null;
+    const restNumber = rest.trim() ? Number(rest.trim()) : null;
 
     if (!setsNumber || setsNumber < 1 || !repsNumber || repsNumber < 1) {
       setError('Informe séries e repetições válidas.');
@@ -48,8 +51,13 @@ export function EditEntryModal({ entry, isSubmitting, serverError, onClose, onCo
       return;
     }
 
+    if (restNumber !== null && (!Number.isInteger(restNumber) || restNumber < 0)) {
+      setError('Informe o descanso em segundos (ex: 60).');
+      return;
+    }
+
     setError(null);
-    onConfirm({ sets: setsNumber, reps: repsNumber, weight: weightNumber });
+    onConfirm({ sets: setsNumber, reps: repsNumber, weight: weightNumber, restSeconds: restNumber });
   }
 
   return (
@@ -60,7 +68,7 @@ export function EditEntryModal({ entry, isSubmitting, serverError, onClose, onCo
             {entry?.exercise.name}
           </ThemedText>
           <ThemedText themeColor="textSecondary" type="small">
-            Editar séries, repetições e peso
+            Editar séries, repetições, descanso e peso
           </ThemedText>
 
           <View style={styles.numberRow}>
@@ -90,6 +98,20 @@ export function EditEntryModal({ entry, isSubmitting, serverError, onClose, onCo
                 keyboardType="number-pad"
                 value={reps}
                 onChangeText={setReps}
+              />
+            </View>
+            <View style={styles.numberField}>
+              <ThemedText type="smallBold" style={styles.label}>
+                Descanso (s)
+              </ThemedText>
+              <TextInput
+                style={[
+                  styles.input,
+                  { backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.border },
+                ]}
+                keyboardType="number-pad"
+                value={rest}
+                onChangeText={setRest}
               />
             </View>
           </View>

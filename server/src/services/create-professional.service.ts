@@ -7,19 +7,21 @@ type IRequestDto = {
     email: string;
     password: string;
     confirmPassword: string;
-    gymId?: string;
+    gymId?: string | null;
+    phone?: string | null;
+    specialty?: string | null;
 }
 
 export class CreateProfessionalService {
     async execute(dto: IRequestDto) {
         if (dto.password !== dto.confirmPassword) {
-            throw new AppError("Passwords do not match");
+            throw new AppError("As senhas não coincidem.");
         }
 
         const emailInUse = await prisma.professional.findUnique({ where: { email: dto.email } });
 
         if (emailInUse) {
-            throw new AppError("Email already in use");
+            throw new AppError("Este e-mail já está em uso.");
         }
 
         if (dto.gymId) {
@@ -37,7 +39,9 @@ export class CreateProfessionalService {
                 name: dto.name,
                 email: dto.email,
                 password: hashedPassword,
-                gymId: dto.gymId ?? null,
+                gymId: dto.gymId || null,
+                phone: dto.phone?.trim() || null,
+                specialty: dto.specialty?.trim() || null,
             },
         });
 
@@ -46,6 +50,9 @@ export class CreateProfessionalService {
                 id: professional.id,
                 name: professional.name,
                 email: professional.email,
+                phone: professional.phone,
+                specialty: professional.specialty,
+                bio: professional.bio,
                 gymId: professional.gymId,
                 createdAt: professional.createdAt,
                 updatedAt: professional.updatedAt,

@@ -1,7 +1,7 @@
 import { prisma } from "../database/prisma.js";
 import type { Weekday } from "../../prisma/client/enums.js";
 
-const WEEKDAYS: Weekday[] = [
+export const WEEKDAYS: Weekday[] = [
     "MONDAY",
     "TUESDAY",
     "WEDNESDAY",
@@ -28,6 +28,7 @@ export class GetWorkoutPlanService {
                     sets: entry.sets,
                     reps: entry.reps,
                     weight: entry.weight,
+                    restSeconds: entry.restSeconds,
                     order: entry.order,
                     exercise: entry.exercise,
                 })),

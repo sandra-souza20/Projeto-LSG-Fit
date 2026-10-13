@@ -17,6 +17,5 @@ export function handleError(error: unknown, res: Response): Response {
     }
 
     console.error(error);
-    const message = error instanceof Error ? error.message : "Unexpected error";
-    return res.status(500).json({ message });
+    return res.status(500).json({ message: "Erro inesperado. Tente novamente." });
 }
