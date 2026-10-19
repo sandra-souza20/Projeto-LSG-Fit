@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "../src/env.js";
 import { prisma } from "../src/database/prisma.js";
 
 const exercises = [

@@ -7,7 +7,8 @@
 	],
 
 	"containerEnv": {
-    "CLAUDE_CONFIG_DIR": "/home/node/.claude"
+    "CLAUDE_CONFIG_DIR": "/home/node/.claude",
+    "XDG_SESSION_TYPE": "wayland"
   },
 
   "mounts": ["source=claude-code-config,target=/home/node/.claude,type=volume"],
