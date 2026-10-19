@@ -1,0 +1,11 @@
+services:
+  apps:
+    build:
+      context: .
+      target: devcontainer
+      dockerfile: ./Dockerfile
+    ports:
+      - 3333:3333
+      - 8081:8081
+    volumes:
+      - .:/home/node/apps
