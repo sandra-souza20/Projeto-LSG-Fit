@@ -12,5 +12,17 @@ gymsRoutes.get("/", gymsController.listAll);
 gymsRoutes.get("/me", ensureAuthenticated, restrictTo("GYM"), gymsController.me);
 gymsRoutes.patch("/me", ensureAuthenticated, restrictTo("GYM"), gymsController.updateMe);
 gymsRoutes.get("/me/professionals", ensureAuthenticated, restrictTo("GYM"), gymsController.professionals);
+gymsRoutes.patch(
+    "/me/professionals/:professionalId/approve",
+    ensureAuthenticated,
+    restrictTo("GYM"),
+    gymsController.approveProfessional,
+);
+gymsRoutes.delete(
+    "/me/professionals/:professionalId",
+    ensureAuthenticated,
+    restrictTo("GYM"),
+    gymsController.removeProfessional,
+);
 gymsRoutes.get("/me/students", ensureAuthenticated, restrictTo("GYM"), gymsController.students);
 gymsRoutes.delete("/me/students/:studentId", ensureAuthenticated, restrictTo("GYM"), gymsController.removeStudent);

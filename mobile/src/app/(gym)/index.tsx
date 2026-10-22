@@ -25,6 +25,8 @@ type GymProfessional = {
   email: string;
   phone: string | null;
   specialty: string | null;
+  // Relacao "Contrata": PENDING e um pedido de vinculo esperando aprovacao.
+  gymStatus: 'PENDING' | 'ACTIVE' | null;
   studentsCount: number;
 };
 
@@ -61,6 +63,9 @@ export default function GymHomeScreen() {
   const [studentToRemove, setStudentToRemove] = useState<GymStudent | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  const [professionalToRemove, setProfessionalToRemove] = useState<GymProfessional | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -88,6 +93,42 @@ export default function GymHomeScreen() {
     load();
   }, [load]);
 
+  const pendingProfessionals = professionals.filter((professional) => professional.gymStatus === 'PENDING');
+  const activeProfessionals = professionals.filter((professional) => professional.gymStatus !== 'PENDING');
+
+  async function handleApproveProfessional(professional: GymProfessional) {
+    if (!token) return;
+
+    setApprovingId(professional.id);
+    setActionError(null);
+    try {
+      await apiRequest<void>(`/gyms/me/professionals/${professional.id}/approve`, { method: 'PATCH', token });
+      setProfessionals((current) =>
+        current.map((item) => (item.id === professional.id ? { ...item, gymStatus: 'ACTIVE' } : item)),
+      );
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Não foi possível aprovar o profissional.');
+    } finally {
+      setApprovingId(null);
+    }
+  }
+
+  async function handleRemoveProfessional() {
+    if (!professionalToRemove || !token) return;
+
+    setIsRemoving(true);
+    setRemoveError(null);
+    try {
+      await apiRequest<void>(`/gyms/me/professionals/${professionalToRemove.id}`, { method: 'DELETE', token });
+      setProfessionals((current) => current.filter((item) => item.id !== professionalToRemove.id));
+      setProfessionalToRemove(null);
+    } catch (err) {
+      setRemoveError(err instanceof Error ? err.message : 'Não foi possível remover o profissional.');
+    } finally {
+      setIsRemoving(false);
+    }
+  }
+
   async function handleRemoveStudent() {
     if (!studentToRemove || !token) return;
 
@@ -110,7 +151,7 @@ export default function GymHomeScreen() {
         <View style={styles.statsRow}>
           <ThemedView type="backgroundElement" style={styles.stat}>
             <ThemedText style={styles.statValue} themeColor="accent">
-              {professionals.length}
+              {activeProfessionals.length}
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               Profissionais
@@ -141,30 +182,102 @@ export default function GymHomeScreen() {
             <ThemedView type="card" style={[styles.card, { borderColor: theme.border }]}>
               <ThemedText type="small" themeColor="textSecondary">
                 Nenhum profissional vinculado ainda. Os profissionais escolhem a academia no cadastro ou em
-                &quot;Meu perfil&quot;.
+                &quot;Meu perfil&quot;, e o pedido aparece aqui para você aprovar.
               </ThemedText>
             </ThemedView>
           ) : (
-            professionals.map((professional) => (
-              <ThemedView key={professional.id} type="card" style={[styles.card, { borderColor: theme.border }]}>
-                <View style={styles.rowBetween}>
+            <>
+              {actionError && (
+                <ThemedText type="small" themeColor="danger">
+                  {actionError}
+                </ThemedText>
+              )}
+
+              {pendingProfessionals.length > 0 && (
+                <ThemedText type="smallBold" style={styles.sectionTitle}>
+                  Pedidos de vínculo ({pendingProfessionals.length})
+                </ThemedText>
+              )}
+              {pendingProfessionals.map((professional) => (
+                <ThemedView key={professional.id} type="card" style={[styles.card, { borderColor: theme.accent }]}>
                   <View style={styles.flex}>
                     <ThemedText type="smallBold">{professional.name}</ThemedText>
                     <ThemedText type="small" themeColor="textSecondary">
-                      {professional.specialty ?? 'Personal trainer'} · {professional.studentsCount}{' '}
-                      {professional.studentsCount === 1 ? 'aluno' : 'alunos'}
+                      {professional.specialty ?? 'Personal trainer'} · {professional.email}
                     </ThemedText>
                   </View>
-                  {professional.phone && (
-                    <Pressable hitSlop={8} onPress={() => openWhatsApp(professional.phone!)}>
-                      <ThemedText type="link" themeColor="accent">
-                        WhatsApp
+                  <View style={styles.rowBetween}>
+                    <Pressable
+                      disabled={approvingId !== null}
+                      onPress={() => handleApproveProfessional(professional)}
+                      style={({ pressed }) => [
+                        styles.actionButton,
+                        { backgroundColor: theme.accent },
+                        pressed && styles.pressed,
+                      ]}>
+                      {approvingId === professional.id ? (
+                        <ActivityIndicator color={theme.accentText} />
+                      ) : (
+                        <ThemedText type="smallBold" themeColor="accentText">
+                          Aprovar
+                        </ThemedText>
+                      )}
+                    </Pressable>
+                    <Pressable
+                      disabled={approvingId !== null}
+                      onPress={() => {
+                        setRemoveError(null);
+                        setProfessionalToRemove(professional);
+                      }}
+                      style={({ pressed }) => [
+                        styles.actionButton,
+                        { borderColor: theme.border, borderWidth: 1 },
+                        pressed && styles.pressed,
+                      ]}>
+                      <ThemedText type="smallBold" themeColor="danger">
+                        Recusar
                       </ThemedText>
                     </Pressable>
-                  )}
-                </View>
-              </ThemedView>
-            ))
+                  </View>
+                </ThemedView>
+              ))}
+
+              {pendingProfessionals.length > 0 && activeProfessionals.length > 0 && (
+                <ThemedText type="smallBold" style={styles.sectionTitle}>
+                  Equipe
+                </ThemedText>
+              )}
+              {activeProfessionals.map((professional) => (
+                <ThemedView key={professional.id} type="card" style={[styles.card, { borderColor: theme.border }]}>
+                  <View style={styles.rowBetween}>
+                    <View style={styles.flex}>
+                      <ThemedText type="smallBold">{professional.name}</ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {professional.specialty ?? 'Personal trainer'} · {professional.studentsCount}{' '}
+                        {professional.studentsCount === 1 ? 'aluno' : 'alunos'}
+                      </ThemedText>
+                    </View>
+                    {professional.phone && (
+                      <Pressable hitSlop={8} onPress={() => openWhatsApp(professional.phone!)}>
+                        <ThemedText type="link" themeColor="accent">
+                          WhatsApp
+                        </ThemedText>
+                      </Pressable>
+                    )}
+                  </View>
+                  <Pressable
+                    hitSlop={8}
+                    onPress={() => {
+                      setRemoveError(null);
+                      setProfessionalToRemove(professional);
+                    }}>
+                    <ThemedText type="small" themeColor="danger">
+                      Remover da equipe
+                    </ThemedText>
+                  </Pressable>
+                </ThemedView>
+              ))}
+            </>
           )
         ) : tab === 'students' ? (
           isLoading ? (
@@ -241,6 +354,21 @@ export default function GymHomeScreen() {
       />
 
       <ConfirmModal
+        visible={professionalToRemove !== null}
+        title={professionalToRemove?.gymStatus === 'PENDING' ? 'Recusar pedido' : 'Remover da equipe'}
+        message={
+          professionalToRemove?.gymStatus === 'PENDING'
+            ? `${professionalToRemove.name} não será vinculado à academia.`
+            : `${professionalToRemove?.name ?? 'O profissional'} deixará de aparecer como profissional da academia. Os alunos dele continuam com ele.`
+        }
+        confirmLabel={professionalToRemove?.gymStatus === 'PENDING' ? 'Recusar' : 'Remover'}
+        isSubmitting={isRemoving}
+        error={removeError}
+        onCancel={() => setProfessionalToRemove(null)}
+        onConfirm={handleRemoveProfessional}
+      />
+
+      <ConfirmModal
         visible={studentToRemove !== null}
         title="Desmatricular aluno"
         message={`${studentToRemove?.name ?? 'O aluno'} deixará de aparecer como aluno da academia. O vínculo com o personal continua.`}
@@ -295,5 +423,19 @@ const styles = StyleSheet.create({
   },
   flex: {
     flex: 1,
+  },
+  sectionTitle: {
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  actionButton: {
+    flex: 1,
+    borderRadius: Radius.medium,
+    paddingVertical: Spacing.two,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pressed: {
+    opacity: 0.7,
   },
 });

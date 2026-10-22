@@ -91,7 +91,11 @@ export default function ProfessionalRegisterScreen() {
           value={specialty}
           onChangeText={setSpecialty}
         />
-        <GymPicker value={gymId} onChange={setGymId} />
+        <GymPicker
+          value={gymId}
+          onChange={setGymId}
+          hint="Se você trabalha numa academia, ela precisa aprovar o vínculo."
+        />
         <TextField label="Senha" placeholder="••••••••" isPassword value={password} onChangeText={setPassword} />
         <TextField
           label="Confirmar senha"

@@ -34,6 +34,18 @@ export default function ProfessionalProfileScreen() {
     return () => clearTimeout(timeout);
   }, [savedAt]);
 
+  const savedGymId = professional?.gymId ?? null;
+  const gymStatusMessage =
+    gymId !== savedGymId
+      ? gymId
+        ? 'Ao salvar, a academia precisa aprovar o vínculo antes de ele aparecer para os alunos.'
+        : null
+      : professional?.gymStatus === 'PENDING'
+        ? 'Aguardando a academia aprovar o vínculo. Enquanto isso, você aparece como autônomo para os alunos.'
+        : professional?.gymStatus === 'ACTIVE'
+          ? 'Vínculo aprovado pela academia.'
+          : null;
+
   async function handleSave() {
     if (!name.trim()) {
       setError('Informe o seu nome.');
@@ -93,6 +105,13 @@ export default function ProfessionalProfileScreen() {
             onChangeText={setBio}
           />
           <GymPicker value={gymId} onChange={setGymId} />
+          {gymStatusMessage && (
+            <ThemedText
+              type="small"
+              themeColor={professional?.gymStatus === 'ACTIVE' && gymId === savedGymId ? 'accent' : 'textSecondary'}>
+              {gymStatusMessage}
+            </ThemedText>
+          )}
 
           {error && (
             <ThemedText type="small" themeColor="danger">

@@ -42,6 +42,9 @@ model Professional {
   email String @unique
   password String
   gymId String? @map("gym_id") @db.Uuid
+  // Relacao "Contrata": o vinculo fica pendente ate a academia aprovar.
+  // Null quando o profissional e autonomo.
+  gymStatus GymLinkStatus? @map("gym_status")
   // RF05: dados exibidos na "Pagina de Perfis" para o aluno contatar o profissional.
   phone String?
   specialty String?
@@ -92,6 +95,11 @@ model Exercise {
   workoutEntries WorkoutEntry[]
 
   @@map("exercises")
+}
+
+enum GymLinkStatus {
+  PENDING
+  ACTIVE
 }
 
 enum Weekday {

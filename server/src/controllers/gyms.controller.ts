@@ -91,7 +91,8 @@ export class GymsController {
         return res.status(200).json(gyms);
     }
 
-    // Profissionais que se vincularam a esta academia (relacao "Contrata" do DER).
+    // Profissionais vinculados a esta academia (relacao "Contrata" do DER),
+    // incluindo os pedidos pendentes de aprovacao.
     async professionals(req: Request, res: Response): Promise<Response> {
         const professionals = await prisma.professional.findMany({
             where: { gymId: req.userId },
@@ -101,9 +102,10 @@ export class GymsController {
                 email: true,
                 phone: true,
                 specialty: true,
+                gymStatus: true,
                 _count: { select: { students: true } },
             },
-            orderBy: { name: "asc" },
+            orderBy: [{ gymStatus: "asc" }, { name: "asc" }],
         });
 
         return res.status(200).json(
@@ -112,6 +114,43 @@ export class GymsController {
                 studentsCount: _count.students,
             })),
         );
+    }
+
+    // A academia aprova o pedido de vinculo de um profissional.
+    async approveProfessional(req: Request, res: Response): Promise<Response> {
+        try {
+            const { count } = await prisma.professional.updateMany({
+                where: { id: req.params.professionalId as string, gymId: req.userId, gymStatus: "PENDING" },
+                data: { gymStatus: "ACTIVE" },
+            });
+
+            if (count === 0) {
+                throw new AppError("Pedido de vínculo não encontrado.", 404);
+            }
+
+            return res.status(204).send();
+        } catch (error) {
+            return handleError(error, res);
+        }
+    }
+
+    // Recusa um pedido pendente ou remove um profissional ja aprovado. Os alunos
+    // dele nao mudam: o personal pode continuar atendendo como autonomo.
+    async removeProfessional(req: Request, res: Response): Promise<Response> {
+        try {
+            const { count } = await prisma.professional.updateMany({
+                where: { id: req.params.professionalId as string, gymId: req.userId },
+                data: { gymId: null, gymStatus: null },
+            });
+
+            if (count === 0) {
+                throw new AppError("Profissional não encontrado nesta academia.", 404);
+            }
+
+            return res.status(204).send();
+        } catch (error) {
+            return handleError(error, res);
+        }
     }
 
     // Relacao "Matricula" do DER: alunos que treinam nesta academia.

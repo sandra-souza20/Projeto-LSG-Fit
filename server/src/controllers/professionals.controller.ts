@@ -4,6 +4,7 @@ import { AuthenticateProfessionalService } from "../services/authenticate-profes
 import { AppError, handleError } from "../utils/app-error.js";
 import { prisma } from "../database/prisma.js";
 import { listSessionsInRange } from "./workout-sessions.controller.js";
+import type { GymLinkStatus } from "../../prisma/client/enums.js";
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -15,6 +16,7 @@ function serializeProfessional(professional: {
     specialty: string | null;
     bio: string | null;
     gymId: string | null;
+    gymStatus: GymLinkStatus | null;
     createdAt: Date;
     updatedAt: Date;
 }) {
@@ -26,6 +28,7 @@ function serializeProfessional(professional: {
         specialty: professional.specialty,
         bio: professional.bio,
         gymId: professional.gymId,
+        gymStatus: professional.gymStatus,
         createdAt: professional.createdAt,
         updatedAt: professional.updatedAt,
     };
@@ -85,6 +88,18 @@ export class ProfessionalsController {
                 }
             }
 
+            const current = await prisma.professional.findUniqueOrThrow({
+                where: { id: req.userId },
+                select: { gymId: true },
+            });
+
+            // Relacao "Contrata": ao entrar numa academia diferente o vinculo volta
+            // a ficar pendente ate a academia aprovar.
+            const gymChange =
+                gymId !== undefined && (gymId || null) !== current.gymId
+                    ? { gymId: gymId || null, gymStatus: gymId ? ("PENDING" as const) : null }
+                    : {};
+
             const professional = await prisma.professional.update({
                 where: { id: req.userId },
                 data: {
@@ -92,7 +107,7 @@ export class ProfessionalsController {
                     ...(phone !== undefined ? { phone: phone?.trim() || null } : {}),
                     ...(specialty !== undefined ? { specialty: specialty?.trim() || null } : {}),
                     ...(bio !== undefined ? { bio: bio?.trim() || null } : {}),
-                    ...(gymId !== undefined ? { gymId: gymId || null } : {}),
+                    ...gymChange,
                 },
             });
 
@@ -112,15 +127,19 @@ export class ProfessionalsController {
                 specialty: true,
                 bio: true,
                 gymId: true,
+                gymStatus: true,
                 gym: { select: { id: true, name: true } },
                 _count: { select: { students: true } },
             },
             orderBy: { name: "asc" },
         });
 
+        // A academia so aparece no perfil publico depois que ela aprova o vinculo.
         return res.status(200).json(
-            professionals.map(({ _count, ...professional }) => ({
+            professionals.map(({ _count, gymStatus, gymId, gym, ...professional }) => ({
                 ...professional,
+                gymId: gymStatus === "ACTIVE" ? gymId : null,
+                gym: gymStatus === "ACTIVE" ? gym : null,
                 studentsCount: _count.students,
             })),
         );

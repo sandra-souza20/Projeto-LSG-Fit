@@ -40,6 +40,8 @@ export class CreateProfessionalService {
                 email: dto.email,
                 password: hashedPassword,
                 gymId: dto.gymId || null,
+                // Relacao "Contrata": a academia precisa aprovar o vinculo.
+                gymStatus: dto.gymId ? "PENDING" : null,
                 phone: dto.phone?.trim() || null,
                 specialty: dto.specialty?.trim() || null,
             },
@@ -54,6 +56,7 @@ export class CreateProfessionalService {
                 specialty: professional.specialty,
                 bio: professional.bio,
                 gymId: professional.gymId,
+                gymStatus: professional.gymStatus,
                 createdAt: professional.createdAt,
                 updatedAt: professional.updatedAt,
             },
