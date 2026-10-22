@@ -5,6 +5,7 @@ import { AppHeader } from '@/components/app-header';
 import { ConfirmLogoutModal } from '@/components/confirm-logout-modal';
 import { ConfirmModal } from '@/components/confirm-modal';
 import { EditProfileModal, type ProfileField } from '@/components/edit-profile-modal';
+import { GymStudentsTab, type GymStudent } from '@/components/gym/gym-students-tab';
 import { InfoRow } from '@/components/info-row';
 import { Screen } from '@/components/screen';
 import { SegmentedControl } from '@/components/segmented-control';
@@ -30,16 +31,6 @@ type GymProfessional = {
   studentsCount: number;
 };
 
-// Relacao "Matricula": so contato e vinculo (RNF05: sem treino nem avaliacoes).
-type GymStudent = {
-  id: string;
-  name: string;
-  email: string;
-  phone: string | null;
-  gymEnrolledAt: string | null;
-  professional: { id: string; name: string } | null;
-};
-
 const TAB_OPTIONS: { value: Tab; label: string }[] = [
   { value: 'professionals', label: 'Profissionais' },
   { value: 'students', label: 'Alunos' },
@@ -52,6 +43,14 @@ const PROFILE_FIELDS: ProfileField[] = [
   { key: 'address', label: 'Endereço', placeholder: 'Rua, número, bairro, cidade' },
 ];
 
+// Inicio e fim do mes atual no fuso do aparelho, para contar os treinos do mes.
+function currentMonthRange() {
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth(), 1);
+  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  return `from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`;
+}
+
 // Area da academia (ator "Academia" do DER): acompanha os profissionais
 // vinculados (Contrata), os alunos matriculados (Matricula) e os dados da academia.
 export default function GymHomeScreen() {
@@ -60,7 +59,6 @@ export default function GymHomeScreen() {
   const [tab, setTab] = useState<Tab>('professionals');
   const [professionals, setProfessionals] = useState<GymProfessional[]>([]);
   const [students, setStudents] = useState<GymStudent[]>([]);
-  const [studentToRemove, setStudentToRemove] = useState<GymStudent | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [professionalToRemove, setProfessionalToRemove] = useState<GymProfessional | null>(null);
@@ -78,7 +76,7 @@ export default function GymHomeScreen() {
     try {
       const [professionalsResult, studentsResult] = await Promise.all([
         apiRequest<GymProfessional[]>('/gyms/me/professionals', { token }),
-        apiRequest<GymStudent[]>('/gyms/me/students', { token }),
+        apiRequest<GymStudent[]>(`/gyms/me/students?${currentMonthRange()}`, { token }),
       ]);
       setProfessionals(professionalsResult);
       setStudents(studentsResult);
@@ -124,22 +122,6 @@ export default function GymHomeScreen() {
       setProfessionalToRemove(null);
     } catch (err) {
       setRemoveError(err instanceof Error ? err.message : 'Não foi possível remover o profissional.');
-    } finally {
-      setIsRemoving(false);
-    }
-  }
-
-  async function handleRemoveStudent() {
-    if (!studentToRemove || !token) return;
-
-    setIsRemoving(true);
-    setRemoveError(null);
-    try {
-      await apiRequest<void>(`/gyms/me/students/${studentToRemove.id}`, { method: 'DELETE', token });
-      setStudents((current) => current.filter((student) => student.id !== studentToRemove.id));
-      setStudentToRemove(null);
-    } catch (err) {
-      setRemoveError(err instanceof Error ? err.message : 'Não foi possível desmatricular o aluno.');
     } finally {
       setIsRemoving(false);
     }
@@ -282,45 +264,13 @@ export default function GymHomeScreen() {
         ) : tab === 'students' ? (
           isLoading ? (
             <ActivityIndicator color={theme.accent} style={styles.loading} />
-          ) : students.length === 0 ? (
-            <ThemedView type="card" style={[styles.card, { borderColor: theme.border }]}>
-              <ThemedText type="small" themeColor="textSecondary">
-                Nenhum aluno matriculado ainda. Os alunos escolhem a academia no cadastro ou em &quot;Perfil&quot;.
-              </ThemedText>
-            </ThemedView>
           ) : (
-            students.map((student) => (
-              <ThemedView key={student.id} type="card" style={[styles.card, { borderColor: theme.border }]}>
-                <View style={styles.rowBetween}>
-                  <View style={styles.flex}>
-                    <ThemedText type="smallBold">{student.name}</ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {student.professional ? `Personal: ${student.professional.name}` : 'Sem personal'}
-                      {student.gymEnrolledAt
-                        ? ` · desde ${new Date(student.gymEnrolledAt).toLocaleDateString('pt-BR')}`
-                        : ''}
-                    </ThemedText>
-                  </View>
-                  {student.phone && (
-                    <Pressable hitSlop={8} onPress={() => openWhatsApp(student.phone!)}>
-                      <ThemedText type="link" themeColor="accent">
-                        WhatsApp
-                      </ThemedText>
-                    </Pressable>
-                  )}
-                </View>
-                <Pressable
-                  hitSlop={8}
-                  onPress={() => {
-                    setRemoveError(null);
-                    setStudentToRemove(student);
-                  }}>
-                  <ThemedText type="small" themeColor="danger">
-                    Desmatricular
-                  </ThemedText>
-                </Pressable>
-              </ThemedView>
-            ))
+            <GymStudentsTab
+              students={students}
+              onStudentRemoved={(studentId) =>
+                setStudents((current) => current.filter((student) => student.id !== studentId))
+              }
+            />
           )
         ) : (
           <>
@@ -366,17 +316,6 @@ export default function GymHomeScreen() {
         error={removeError}
         onCancel={() => setProfessionalToRemove(null)}
         onConfirm={handleRemoveProfessional}
-      />
-
-      <ConfirmModal
-        visible={studentToRemove !== null}
-        title="Desmatricular aluno"
-        message={`${studentToRemove?.name ?? 'O aluno'} deixará de aparecer como aluno da academia. O vínculo com o personal continua.`}
-        confirmLabel="Desmatricular"
-        isSubmitting={isRemoving}
-        error={removeError}
-        onCancel={() => setStudentToRemove(null)}
-        onConfirm={handleRemoveStudent}
       />
 
       <ConfirmLogoutModal

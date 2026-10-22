@@ -3,6 +3,7 @@ import { CreateGymService } from "../services/create-gym.service.js";
 import { AuthenticateGymService } from "../services/authenticate-gym.service.js";
 import { AppError, handleError } from "../utils/app-error.js";
 import { prisma } from "../database/prisma.js";
+import { listSessionsInRange, parseRange } from "./workout-sessions.controller.js";
 
 function serializeGym(gym: {
     id: string;
@@ -153,24 +154,70 @@ export class GymsController {
         }
     }
 
-    // Relacao "Matricula" do DER: alunos que treinam nesta academia.
-    // RNF05: a academia ve so dados de contato e vinculo, nunca a ficha de
-    // treino nem as avaliacoes fisicas do aluno.
+    // Relacao "Matricula" do DER: alunos que treinam nesta academia, com a
+    // frequencia (caso de uso "Verificar Frequencia"). Com ?from=&to= conta os
+    // treinos do periodo; lastWorkoutAt permite achar os alunos ausentes.
+    // RNF05: a academia ve contato, vinculo e datas de treino, nunca a ficha
+    // de treino nem as avaliacoes fisicas do aluno.
     async students(req: Request, res: Response): Promise<Response> {
-        const students = await prisma.user.findMany({
-            where: { gymId: req.userId },
-            select: {
-                id: true,
-                name: true,
-                email: true,
-                phone: true,
-                gymEnrolledAt: true,
-                professional: { select: { id: true, name: true } },
-            },
-            orderBy: { name: "asc" },
-        });
+        try {
+            const range = req.query.from || req.query.to ? parseRange(req.query) : null;
 
-        return res.status(200).json(students);
+            const students = await prisma.user.findMany({
+                where: { gymId: req.userId },
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    phone: true,
+                    gymEnrolledAt: true,
+                    professional: { select: { id: true, name: true } },
+                    workoutSessions: {
+                        select: { completedAt: true },
+                        orderBy: { completedAt: "desc" },
+                        take: 1,
+                    },
+                    _count: {
+                        select: {
+                            workoutSessions: {
+                                where: range ? { completedAt: { gte: range.from, lte: range.to } } : {},
+                            },
+                        },
+                    },
+                },
+                orderBy: { name: "asc" },
+            });
+
+            return res.status(200).json(
+                students.map(({ workoutSessions, _count, ...student }) => ({
+                    ...student,
+                    lastWorkoutAt: workoutSessions[0]?.completedAt ?? null,
+                    ...(range ? { workoutsInRange: _count.workoutSessions } : {}),
+                })),
+            );
+        } catch (error) {
+            return handleError(error, res);
+        }
+    }
+
+    // Calendario de frequencia de um aluno matriculado nesta academia.
+    async studentWorkoutSessions(req: Request, res: Response): Promise<Response> {
+        try {
+            const student = await prisma.user.findFirst({
+                where: { id: req.params.studentId as string, gymId: req.userId },
+                select: { id: true },
+            });
+
+            if (!student) {
+                throw new AppError("Aluno não encontrado nesta academia.", 404);
+            }
+
+            const sessions = await listSessionsInRange(student.id, req.query);
+
+            return res.status(200).json(sessions);
+        } catch (error) {
+            return handleError(error, res);
+        }
     }
 
     // A academia cancela a matricula de um aluno que saiu. O vinculo com o

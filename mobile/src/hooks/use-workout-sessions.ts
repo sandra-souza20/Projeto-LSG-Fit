@@ -11,7 +11,8 @@ export function toDateKey(date: Date) {
 
 // Frequencia do mes (RF04). Sem studentId le os treinos do proprio aluno;
 // com studentId le os de um aluno pela visao do profissional vinculado.
-export function useWorkoutSessions(month: Date, studentId?: string, refreshKey?: number) {
+// sessionsPath troca a rota (ex.: a academia vendo um aluno matriculado).
+export function useWorkoutSessions(month: Date, studentId?: string, refreshKey?: number, sessionsPath?: string) {
   const { token } = useAuth();
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -19,7 +20,8 @@ export function useWorkoutSessions(month: Date, studentId?: string, refreshKey?:
 
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
-  const basePath = studentId ? `/professionals/students/${studentId}/workout-sessions` : '/workout-sessions';
+  const basePath =
+    sessionsPath ?? (studentId ? `/professionals/students/${studentId}/workout-sessions` : '/workout-sessions');
 
   const load = useCallback(async () => {
     if (!token) return;

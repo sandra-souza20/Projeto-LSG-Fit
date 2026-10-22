@@ -25,4 +25,10 @@ gymsRoutes.delete(
     gymsController.removeProfessional,
 );
 gymsRoutes.get("/me/students", ensureAuthenticated, restrictTo("GYM"), gymsController.students);
+gymsRoutes.get(
+    "/me/students/:studentId/workout-sessions",
+    ensureAuthenticated,
+    restrictTo("GYM"),
+    gymsController.studentWorkoutSessions,
+);
 gymsRoutes.delete("/me/students/:studentId", ensureAuthenticated, restrictTo("GYM"), gymsController.removeStudent);
