@@ -1,10 +1,16 @@
+import { useMemo } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { useProfessionals, type ProfessionalSummary } from '@/hooks/use-professionals';
+import { useAuth } from '@/contexts/auth-context';
+import {
+  sortProfessionalsForStudent,
+  useProfessionals,
+  type ProfessionalSummary,
+} from '@/hooks/use-professionals';
 
 type SelectProfessionalModalProps = {
   visible: boolean;
@@ -22,7 +28,9 @@ export function SelectProfessionalModal({
   onSelect,
 }: SelectProfessionalModalProps) {
   const theme = useTheme();
-  const { professionals, isLoading, error } = useProfessionals();
+  const { user } = useAuth();
+  const { professionals: allProfessionals, isLoading, error } = useProfessionals();
+  const professionals = useMemo(() => sortProfessionalsForStudent(allProfessionals, user), [allProfessionals, user]);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -61,8 +69,13 @@ export function SelectProfessionalModal({
                   ]}>
                   <ThemedText type="smallBold">{item.name}</ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
-                    {item.email}
+                    {item.gym ? item.gym.name : item.email}
                   </ThemedText>
+                  {user?.gymId && item.gymId === user.gymId && (
+                    <ThemedText type="small" themeColor="accent">
+                      Da sua academia
+                    </ThemedText>
+                  )}
                 </Pressable>
               )}
             />

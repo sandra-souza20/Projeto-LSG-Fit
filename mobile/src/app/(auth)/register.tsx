@@ -4,6 +4,7 @@ import { Pressable, StyleSheet } from 'react-native';
 
 import { AuthCard } from '@/components/auth-card';
 import { AuthScreen } from '@/components/auth-screen';
+import { GymPicker } from '@/components/gym-picker';
 import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
@@ -16,6 +17,7 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [gymId, setGymId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -41,6 +43,7 @@ export default function RegisterScreen() {
         email: trimmedEmail,
         password,
         confirmPassword,
+        gymId,
       });
       if (needsVerification) {
         router.push({ pathname: '/verify-email', params: { email: trimmedEmail } });
@@ -82,6 +85,12 @@ export default function RegisterScreen() {
           isPassword
           value={confirmPassword}
           onChangeText={setConfirmPassword}
+        />
+        <GymPicker
+          value={gymId}
+          onChange={setGymId}
+          noneLabel="Nenhuma"
+          hint="Onde você treina? Dá para escolher ou trocar depois no seu perfil."
         />
 
         {error && (

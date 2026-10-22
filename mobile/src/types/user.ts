@@ -1,11 +1,17 @@
 export type ActorRole = 'STUDENT' | 'PROFESSIONAL' | 'GYM';
 
+export type GymLinkStatus = 'PENDING' | 'ACTIVE';
+
 export type User = {
   id: string;
   name: string;
   email: string;
   phone?: string | null;
   professionalId?: string | null;
+  // Relacao "Matricula" do DER: academia em que o aluno treina.
+  gymId?: string | null;
+  gymEnrolledAt?: string | null;
+  gym?: { id: string; name: string } | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -18,6 +24,8 @@ export type Professional = {
   specialty?: string | null;
   bio?: string | null;
   gymId?: string | null;
+  // Relacao "Contrata": PENDING ate a academia aprovar o vinculo.
+  gymStatus?: GymLinkStatus | null;
   createdAt: string;
   updatedAt: string;
 };

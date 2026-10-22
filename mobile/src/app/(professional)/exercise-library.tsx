@@ -7,7 +7,7 @@ import { ThemedText } from '@/components/themed-text';
 import { CreateExerciseModal, type CreateExerciseInput } from '@/components/workout/create-exercise-modal';
 import { ExerciseCatalogItem } from '@/components/workout/exercise-catalog-item';
 import { ExerciseDetailsModal } from '@/components/workout/exercise-details-modal';
-import { Radius, Spacing } from '@/constants/theme';
+import { FontFamily, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { useTheme } from '@/hooks/use-theme';
 import { apiRequest } from '@/services/api';
@@ -192,6 +192,7 @@ export default function ExerciseLibraryScreen() {
 
 const styles = StyleSheet.create({
   searchInput: {
+    fontFamily: FontFamily.regular,
     borderWidth: 1,
     borderRadius: Radius.medium,
     paddingHorizontal: Spacing.three,

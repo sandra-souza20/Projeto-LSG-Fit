@@ -18,11 +18,15 @@ model User {
   resetPasswordCode String? @map("reset_password_code")
   resetPasswordCodeExpiresAt DateTime? @map("reset_password_code_expires_at")
   professionalId String? @map("professional_id") @db.Uuid
+  // Relacao "Matricula" do DER: academia em que o aluno treina.
+  gymId String? @map("gym_id") @db.Uuid
+  gymEnrolledAt DateTime? @map("gym_enrolled_at")
   phone String?
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
 
   professional Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
+  gym Gym? @relation(fields: [gymId], references: [id], onDelete: SetNull)
   workoutEntries WorkoutEntry[]
   physicalAssessments PhysicalAssessment[]
   workoutSessions WorkoutSession[]
@@ -38,6 +42,9 @@ model Professional {
   email String @unique
   password String
   gymId String? @map("gym_id") @db.Uuid
+  // Relacao "Contrata": o vinculo fica pendente ate a academia aprovar.
+  // Null quando o profissional e autonomo.
+  gymStatus GymLinkStatus? @map("gym_status")
   // RF05: dados exibidos na "Pagina de Perfis" para o aluno contatar o profissional.
   phone String?
   specialty String?
@@ -65,6 +72,7 @@ model Gym {
   updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
 
   professionals Professional[]
+  students User[]
 
   @@map("gyms")
 }
@@ -87,6 +95,11 @@ model Exercise {
   workoutEntries WorkoutEntry[]
 
   @@map("exercises")
+}
+
+enum GymLinkStatus {
+  PENDING
+  ACTIVE
 }
 
 enum Weekday {

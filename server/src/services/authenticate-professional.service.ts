@@ -33,6 +33,7 @@ export class AuthenticateProfessionalService {
                 specialty: professional.specialty,
                 bio: professional.bio,
                 gymId: professional.gymId,
+                gymStatus: professional.gymStatus,
                 createdAt: professional.createdAt,
                 updatedAt: professional.updatedAt,
             },

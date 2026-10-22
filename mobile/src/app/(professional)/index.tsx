@@ -7,7 +7,7 @@ import { AppHeader } from '@/components/app-header';
 import { ConfirmLogoutModal } from '@/components/confirm-logout-modal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { FontFamily, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { useProfessionalStudents } from '@/hooks/use-professional-students';
 import { useTheme } from '@/hooks/use-theme';
@@ -180,6 +180,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   searchInput: {
+    fontFamily: FontFamily.regular,
     borderWidth: 1,
     borderRadius: Radius.medium,
     paddingHorizontal: Spacing.three,

@@ -28,15 +28,35 @@ export const Colors = {
     backgroundSelected: '#2E3135',
     textSecondary: '#B0B4BA',
     card: '#141414',
-    border: '#2A2A2E',
+    // Identidade visual do TCC (secao 11): preto #000000, verde #CCFF00,
+    // branco #FFFFFF e cinza complementar #323232.
+    border: '#323232',
     inputBackground: '#212225',
-    accent: '#C6FF3D',
+    accent: '#CCFF00',
     accentText: '#0A0A0A',
     danger: '#FF6B6B',
   },
 } as const;
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
+
+// Tipografia do TCC: Montserrat Regular, Medium, Semibold e Bold. Cada peso e
+// uma familia separada (no Android o fontWeight nao troca o peso de uma fonte
+// carregada), entao o texto escolhe a familia pelo peso pedido.
+export const FontFamily = {
+  regular: 'Montserrat_400Regular',
+  medium: 'Montserrat_500Medium',
+  semibold: 'Montserrat_600SemiBold',
+  bold: 'Montserrat_700Bold',
+} as const;
+
+export function fontFamilyForWeight(weight: string | number | undefined) {
+  const value = weight === 'bold' ? 700 : Number(weight) || 400;
+  if (value >= 700) return FontFamily.bold;
+  if (value >= 600) return FontFamily.semibold;
+  if (value >= 500) return FontFamily.medium;
+  return FontFamily.regular;
+}
 
 export const Fonts = Platform.select({
   ios: {

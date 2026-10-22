@@ -3,6 +3,7 @@ import { CreateGymService } from "../services/create-gym.service.js";
 import { AuthenticateGymService } from "../services/authenticate-gym.service.js";
 import { AppError, handleError } from "../utils/app-error.js";
 import { prisma } from "../database/prisma.js";
+import { listSessionsInRange, parseRange } from "./workout-sessions.controller.js";
 
 function serializeGym(gym: {
     id: string;
@@ -91,7 +92,8 @@ export class GymsController {
         return res.status(200).json(gyms);
     }
 
-    // Profissionais que se vincularam a esta academia (relacao "Contrata" do DER).
+    // Profissionais vinculados a esta academia (relacao "Contrata" do DER),
+    // incluindo os pedidos pendentes de aprovacao.
     async professionals(req: Request, res: Response): Promise<Response> {
         const professionals = await prisma.professional.findMany({
             where: { gymId: req.userId },
@@ -101,9 +103,10 @@ export class GymsController {
                 email: true,
                 phone: true,
                 specialty: true,
+                gymStatus: true,
                 _count: { select: { students: true } },
             },
-            orderBy: { name: "asc" },
+            orderBy: [{ gymStatus: "asc" }, { name: "asc" }],
         });
 
         return res.status(200).json(
@@ -112,5 +115,127 @@ export class GymsController {
                 studentsCount: _count.students,
             })),
         );
+    }
+
+    // A academia aprova o pedido de vinculo de um profissional.
+    async approveProfessional(req: Request, res: Response): Promise<Response> {
+        try {
+            const { count } = await prisma.professional.updateMany({
+                where: { id: req.params.professionalId as string, gymId: req.userId, gymStatus: "PENDING" },
+                data: { gymStatus: "ACTIVE" },
+            });
+
+            if (count === 0) {
+                throw new AppError("Pedido de vínculo não encontrado.", 404);
+            }
+
+            return res.status(204).send();
+        } catch (error) {
+            return handleError(error, res);
+        }
+    }
+
+    // Recusa um pedido pendente ou remove um profissional ja aprovado. Os alunos
+    // dele nao mudam: o personal pode continuar atendendo como autonomo.
+    async removeProfessional(req: Request, res: Response): Promise<Response> {
+        try {
+            const { count } = await prisma.professional.updateMany({
+                where: { id: req.params.professionalId as string, gymId: req.userId },
+                data: { gymId: null, gymStatus: null },
+            });
+
+            if (count === 0) {
+                throw new AppError("Profissional não encontrado nesta academia.", 404);
+            }
+
+            return res.status(204).send();
+        } catch (error) {
+            return handleError(error, res);
+        }
+    }
+
+    // Relacao "Matricula" do DER: alunos que treinam nesta academia, com a
+    // frequencia (caso de uso "Verificar Frequencia"). Com ?from=&to= conta os
+    // treinos do periodo; lastWorkoutAt permite achar os alunos ausentes.
+    // RNF05: a academia ve contato, vinculo e datas de treino, nunca a ficha
+    // de treino nem as avaliacoes fisicas do aluno.
+    async students(req: Request, res: Response): Promise<Response> {
+        try {
+            const range = req.query.from || req.query.to ? parseRange(req.query) : null;
+
+            const students = await prisma.user.findMany({
+                where: { gymId: req.userId },
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    phone: true,
+                    gymEnrolledAt: true,
+                    professional: { select: { id: true, name: true } },
+                    workoutSessions: {
+                        select: { completedAt: true },
+                        orderBy: { completedAt: "desc" },
+                        take: 1,
+                    },
+                    _count: {
+                        select: {
+                            workoutSessions: {
+                                where: range ? { completedAt: { gte: range.from, lte: range.to } } : {},
+                            },
+                        },
+                    },
+                },
+                orderBy: { name: "asc" },
+            });
+
+            return res.status(200).json(
+                students.map(({ workoutSessions, _count, ...student }) => ({
+                    ...student,
+                    lastWorkoutAt: workoutSessions[0]?.completedAt ?? null,
+                    ...(range ? { workoutsInRange: _count.workoutSessions } : {}),
+                })),
+            );
+        } catch (error) {
+            return handleError(error, res);
+        }
+    }
+
+    // Calendario de frequencia de um aluno matriculado nesta academia.
+    async studentWorkoutSessions(req: Request, res: Response): Promise<Response> {
+        try {
+            const student = await prisma.user.findFirst({
+                where: { id: req.params.studentId as string, gymId: req.userId },
+                select: { id: true },
+            });
+
+            if (!student) {
+                throw new AppError("Aluno não encontrado nesta academia.", 404);
+            }
+
+            const sessions = await listSessionsInRange(student.id, req.query);
+
+            return res.status(200).json(sessions);
+        } catch (error) {
+            return handleError(error, res);
+        }
+    }
+
+    // A academia cancela a matricula de um aluno que saiu. O vinculo com o
+    // profissional nao muda: o personal pode continuar atendendo o aluno.
+    async removeStudent(req: Request, res: Response): Promise<Response> {
+        try {
+            const { count } = await prisma.user.updateMany({
+                where: { id: req.params.studentId as string, gymId: req.userId },
+                data: { gymId: null, gymEnrolledAt: null },
+            });
+
+            if (count === 0) {
+                throw new AppError("Aluno não encontrado nesta academia.", 404);
+            }
+
+            return res.status(204).send();
+        } catch (error) {
+            return handleError(error, res);
+        }
     }
 }

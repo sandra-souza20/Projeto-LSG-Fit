@@ -1,3 +1,10 @@
+import {
+  Montserrat_400Regular,
+  Montserrat_500Medium,
+  Montserrat_600SemiBold,
+  Montserrat_700Bold,
+  useFonts,
+} from '@expo-google-fonts/montserrat';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -59,6 +66,16 @@ function ThemedRoot() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({
+    Montserrat_400Regular,
+    Montserrat_500Medium,
+    Montserrat_600SemiBold,
+    Montserrat_700Bold,
+  });
+
+  // A splash continua na tela ate a fonte carregar; se falhar, segue com a do sistema.
+  if (!fontsLoaded && !fontError) return null;
+
   return (
     <ThemePreferenceProvider>
       <ThemedRoot />

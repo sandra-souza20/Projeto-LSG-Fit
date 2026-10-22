@@ -11,6 +11,8 @@ const WEEKDAY_INITIALS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
 type FrequencyCalendarProps = {
   studentId?: string;
+  // Rota alternativa dos treinos (ex.: visao da academia).
+  sessionsPath?: string;
   // Muda a cada foco da tela para recarregar depois de finalizar um treino.
   refreshKey?: number;
 };
@@ -20,13 +22,13 @@ function capitalize(text: string) {
 }
 
 // RF04: frequencia do aluno no mes, com os dias treinados destacados.
-export function FrequencyCalendar({ studentId, refreshKey }: FrequencyCalendarProps) {
+export function FrequencyCalendar({ studentId, sessionsPath, refreshKey }: FrequencyCalendarProps) {
   const theme = useTheme();
   const [month, setMonth] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
-  const { trainedDays, isLoading, error } = useWorkoutSessions(month, studentId, refreshKey);
+  const { trainedDays, isLoading, error } = useWorkoutSessions(month, studentId, refreshKey, sessionsPath);
 
   const today = new Date();
   const isCurrentMonth = month.getFullYear() === today.getFullYear() && month.getMonth() === today.getMonth();

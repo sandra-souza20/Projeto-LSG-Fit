@@ -11,6 +11,8 @@ type IRequestDto = {
     email: string;
     password: string;
     confirmPassword: string;
+    // Matricula opcional ja no cadastro (relacao "Matricula" do DER).
+    gymId?: string | null;
 }
 
 export class CreateUserService {
@@ -27,10 +29,22 @@ export class CreateUserService {
             throw new AppError("Este e-mail já está em uso.");
         }
 
+        const gymId = dto.gymId || null;
+
+        if (gymId) {
+            const gym = await prisma.gym.findUnique({ where: { id: gymId } });
+
+            if (!gym) {
+                throw new AppError("Academia não encontrada.", 404);
+            }
+        }
+
+        const enrollment = { gymId, gymEnrolledAt: gymId ? new Date() : null };
+
         const hashedPassword = await hash(dto.password);
 
         if (!emailVerificationEnabled) {
-            const data = { name: dto.name, password: hashedPassword, emailVerified: true };
+            const data = { name: dto.name, password: hashedPassword, emailVerified: true, ...enrollment };
 
             const user = await prisma.user.upsert({
                 where: { email: dto.email },
@@ -58,6 +72,7 @@ export class CreateUserService {
             password: hashedPassword,
             verificationCode,
             verificationCodeExpiresAt: getVerificationCodeExpiration(),
+            ...enrollment,
         };
 
         const user = await prisma.user.upsert({

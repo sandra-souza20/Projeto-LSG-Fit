@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { ConfirmLogoutModal } from '@/components/confirm-logout-modal';
 import { EditProfileModal, type ProfileField } from '@/components/edit-profile-modal';
 import { FrequencyCalendar } from '@/components/frequency-calendar';
+import { GymPicker } from '@/components/gym-picker';
 import { InfoRow } from '@/components/info-row';
 import { Screen } from '@/components/screen';
 import { ThemeToggleRow } from '@/components/theme-toggle';
@@ -26,12 +27,33 @@ const PROFILE_FIELDS: ProfileField[] = [
 export default function ProfileScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { user, updateUser, signOut } = useAuth();
+  const { user, updateUser, linkGym, signOut } = useAuth();
   const { professionals } = useProfessionals();
   const { assessments, reload: reloadAssessments } = usePhysicalAssessments();
   const [refreshKey, setRefreshKey] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
+  const [isChangingGym, setIsChangingGym] = useState(false);
+  const [isSavingGym, setIsSavingGym] = useState(false);
+  const [gymError, setGymError] = useState<string | null>(null);
+
+  async function handleGymChange(gymId: string | null) {
+    if (gymId === (user?.gymId ?? null)) {
+      setIsChangingGym(false);
+      return;
+    }
+
+    setIsSavingGym(true);
+    setGymError(null);
+    try {
+      await linkGym(gymId);
+      setIsChangingGym(false);
+    } catch (err) {
+      setGymError(err instanceof Error ? err.message : 'Não foi possível alterar a academia.');
+    } finally {
+      setIsSavingGym(false);
+    }
+  }
 
   const professionalName = useMemo(
     () => professionals.find((professional) => professional.id === user?.professionalId)?.name ?? null,
@@ -88,6 +110,50 @@ export default function ProfileScreen() {
           <InfoRow label="E-mail" value={user?.email} />
           <InfoRow label="Telefone" value={user?.phone ? formatPhone(user.phone) : null} />
           <InfoRow label="Profissional" value={professionalName} placeholder="Nenhum vinculado" />
+        </ThemedView>
+
+        <View style={styles.sectionHeader}>
+          <ThemedText type="smallBold" style={styles.sectionTitle}>
+            Academia
+          </ThemedText>
+          <Pressable
+            hitSlop={8}
+            onPress={() => {
+              setGymError(null);
+              setIsChangingGym((value) => !value);
+            }}>
+            <ThemedText type="link" themeColor="accent">
+              {isChangingGym ? 'Cancelar' : user?.gymId ? 'Trocar' : 'Escolher'}
+            </ThemedText>
+          </Pressable>
+        </View>
+        <ThemedView type="card" style={[styles.card, { borderColor: theme.border }]}>
+          {isChangingGym ? (
+            <GymPicker
+              value={user?.gymId ?? null}
+              onChange={handleGymChange}
+              noneLabel="Nenhuma"
+              hint="Toque na academia em que você treina."
+              disabled={isSavingGym}
+            />
+          ) : user?.gym ? (
+            <>
+              <InfoRow label="Academia" value={user.gym.name} />
+              <InfoRow
+                label="Matriculado desde"
+                value={user.gymEnrolledAt ? new Date(user.gymEnrolledAt).toLocaleDateString('pt-BR') : null}
+              />
+            </>
+          ) : (
+            <ThemedText type="small" themeColor="textSecondary">
+              Você ainda não informou a academia em que treina.
+            </ThemedText>
+          )}
+          {gymError && (
+            <ThemedText type="small" themeColor="danger">
+              {gymError}
+            </ThemedText>
+          )}
         </ThemedView>
 
         <View style={styles.sectionHeader}>

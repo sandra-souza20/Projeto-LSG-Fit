@@ -28,9 +28,10 @@ const TOKEN_KEY = 'lsgfit.token';
 const ROLE_KEY = 'lsgfit.role';
 
 type SignInInput = { email: string; password: string };
-type SignUpInput = { name: string; email: string; password: string; confirmPassword: string };
-type ProfessionalSignUpInput = SignUpInput & { phone?: string; specialty?: string; gymId?: string | null };
-type GymSignUpInput = SignUpInput & { phone?: string; address?: string };
+type BaseSignUpInput = { name: string; email: string; password: string; confirmPassword: string };
+type SignUpInput = BaseSignUpInput & { gymId?: string | null };
+type ProfessionalSignUpInput = BaseSignUpInput & { phone?: string; specialty?: string; gymId?: string | null };
+type GymSignUpInput = BaseSignUpInput & { phone?: string; address?: string };
 type UpdateUserInput = { name?: string; phone?: string | null };
 type UpdateProfessionalInput = {
   name?: string;
@@ -65,6 +66,7 @@ type AuthContextValue = {
   gymSignIn: (input: SignInInput) => Promise<void>;
   gymSignUp: (input: GymSignUpInput) => Promise<void>;
   linkProfessional: (professionalId: string | null) => Promise<void>;
+  linkGym: (gymId: string | null) => Promise<void>;
   updateUser: (input: UpdateUserInput) => Promise<void>;
   updateProfessional: (input: UpdateProfessionalInput) => Promise<void>;
   updateGym: (input: UpdateGymInput) => Promise<void>;
@@ -124,6 +126,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(result.user);
     setProfessional(null);
     setGym(null);
+
+    // O login devolve so os dados basicos; busca o perfil completo (telefone,
+    // profissional e academia) para as telas nao ficarem incompletas ate reabrir o app.
+    try {
+      setUser(await apiRequest<User>('/users/me', { token: result.token }));
+    } catch {
+      // Mantem os dados basicos; o perfil completo vem na proxima abertura.
+    }
   }, []);
 
   const persistProfessionalSession = useCallback(async (result: ProfessionalAuthResponse) => {
@@ -282,6 +292,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [token],
   );
 
+  const linkGym = useCallback(
+    async (gymId: string | null) => {
+      setUser(await apiRequest<User>('/users/me/gym', { method: 'PATCH', body: { gymId }, token }));
+    },
+    [token],
+  );
+
   const value = useMemo<AuthContextValue>(
     () => ({
       role,
@@ -303,6 +320,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       gymSignIn,
       gymSignUp,
       linkProfessional,
+      linkGym,
       updateUser,
       updateProfessional,
       updateGym,
@@ -326,6 +344,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       gymSignIn,
       gymSignUp,
       linkProfessional,
+      linkGym,
       updateUser,
       updateProfessional,
       updateGym,
