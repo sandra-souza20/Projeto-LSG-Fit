@@ -11,6 +11,13 @@ function resolveApiUrl() {
 
 export const API_URL = resolveApiUrl();
 
+// Midias da biblioteca padrao vem como caminho relativo ("/media/...") e sao
+// servidas pelo proprio servidor; links cadastrados pelo profissional ja sao completos.
+export function resolveMediaUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  return url.startsWith('/') ? `${API_URL}${url}` : url;
+}
+
 export class ApiError extends Error {
   status: number;
   code?: string;

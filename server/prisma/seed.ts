@@ -1,4 +1,7 @@
 import "../src/env.js";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { prisma } from "../src/database/prisma.js";
 
 const exercises = [
@@ -192,8 +195,37 @@ const exercises = [
     },
 ];
 
+// RF03/RF08: demonstracao visual de cada exercicio. As GIFs (180p) vem da versao
+// gratuita do ExerciseDB (https://oss.exercisedb.dev/docs) e ficam em public/media/exercises,
+// servidas pelo proprio servidor para nao depender da API deles em producao.
+// Licenca: uso nao comercial (ok para o TCC) e com credito obrigatorio a AscendAPI,
+// exibido no app abaixo da animacao. Uso comercial exige plano pago.
+// O arquivo tem o nome do exercicio sem acentos (ex.: "Elevação lateral" -> elevacao-lateral.gif).
+const MEDIA_DIR = fileURLToPath(new URL("../public/media/exercises/", import.meta.url));
+
+function slugify(name: string) {
+    return name
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+}
+
+function gifUrlFor(name: string) {
+    const file = `${slugify(name)}.gif`;
+    if (!existsSync(path.join(MEDIA_DIR, file))) {
+        console.warn(`Sem GIF para "${name}" (esperado public/media/exercises/${file}).`);
+        return null;
+    }
+    // Caminho relativo: o app completa com o endereco do servidor (API_URL).
+    return `/media/exercises/${file}`;
+}
+
 async function main() {
-    for (const exercise of exercises) {
+    for (const base of exercises) {
+        const exercise = { ...base, gifUrl: gifUrlFor(base.name) };
         const existing = await prisma.exercise.findFirst({ where: { name: exercise.name } });
         if (existing) {
             await prisma.exercise.update({ where: { id: existing.id }, data: exercise });
