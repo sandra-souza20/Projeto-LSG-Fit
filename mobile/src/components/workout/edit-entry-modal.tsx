@@ -4,7 +4,7 @@ import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { PrimaryButton } from '@/components/primary-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radius, Spacing } from '@/constants/theme';
+import { FontFamily, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { WorkoutEntry } from '@/types/workout';
 
@@ -181,6 +181,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   input: {
+    fontFamily: FontFamily.regular,
     borderWidth: 1,
     borderRadius: Radius.medium,
     paddingHorizontal: Spacing.three,

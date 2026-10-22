@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radius, Spacing } from '@/constants/theme';
+import { FontFamily, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import {
   sortProfessionalsForStudent,
@@ -182,6 +182,7 @@ export default function ProfessionalsScreen() {
 
 const styles = StyleSheet.create({
   searchInput: {
+    fontFamily: FontFamily.regular,
     borderWidth: 1,
     borderRadius: Radius.medium,
     paddingHorizontal: Spacing.three,

@@ -9,7 +9,7 @@ import { RegisterWeightModal } from '@/components/workout/register-weight-modal'
 import { WorkoutDaySection } from '@/components/workout/workout-day-section';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { BottomTabInset, FontFamily, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useWorkoutPlan } from '@/hooks/use-workout-plan';
 import type { Exercise } from '@/types/exercise';
@@ -206,6 +206,7 @@ const styles = StyleSheet.create({
     paddingBottom: BottomTabInset + Spacing.four,
   },
   searchInput: {
+    fontFamily: FontFamily.regular,
     borderWidth: 1,
     borderRadius: Radius.medium,
     paddingHorizontal: Spacing.three,

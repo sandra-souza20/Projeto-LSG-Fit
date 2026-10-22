@@ -25,6 +25,40 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## Gerar o app instalável (EAS Build)
+
+O `eas.json` tem dois perfis:
+
+| Perfil | Gera | Para quê |
+| --- | --- | --- |
+| `preview` | APK (Android) / build interna (iOS) | Instalar direto nos celulares da academia, na homologação |
+| `production` | AAB (Android) / build da App Store (iOS) | Publicar na Google Play e na App Store |
+
+Primeira vez (precisa de uma conta gratuita em [expo.dev](https://expo.dev)):
+
+```bash
+npm install -g eas-cli
+eas login
+eas init            # liga o projeto à conta e grava o projectId no app.json
+```
+
+O app precisa saber o endereço do servidor publicado. Cadastre a variável em cada ambiente (troque pela URL real da API):
+
+```bash
+eas env:create --environment preview --name EXPO_PUBLIC_API_URL --value https://SUA-API --visibility plaintext
+eas env:create --environment production --name EXPO_PUBLIC_API_URL --value https://SUA-API --visibility plaintext
+```
+
+Gerar os instaláveis:
+
+```bash
+eas build --profile preview --platform android     # APK: o link da build instala direto no celular
+eas build --profile production --platform android  # AAB para a Google Play
+eas build --profile production --platform ios      # exige conta Apple Developer
+```
+
+O identificador do app está em `app.json` (`com.lsgfit.app`); troque antes da primeira publicação se quiser outro.
+
 ## Get a fresh project
 
 When you're ready, run:
