@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppHeader } from '@/components/app-header';
 import { ConfirmLogoutModal } from '@/components/confirm-logout-modal';
+import { ConfirmModal } from '@/components/confirm-modal';
 import { EditProfileModal, type ProfileField } from '@/components/edit-profile-modal';
 import { InfoRow } from '@/components/info-row';
 import { Screen } from '@/components/screen';
@@ -16,7 +17,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { apiRequest } from '@/services/api';
 import { formatPhone, openWhatsApp } from '@/utils/contact';
 
-type Tab = 'professionals' | 'profile';
+type Tab = 'professionals' | 'students' | 'profile';
 
 type GymProfessional = {
   id: string;
@@ -27,8 +28,19 @@ type GymProfessional = {
   studentsCount: number;
 };
 
+// Relacao "Matricula": so contato e vinculo (RNF05: sem treino nem avaliacoes).
+type GymStudent = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  gymEnrolledAt: string | null;
+  professional: { id: string; name: string } | null;
+};
+
 const TAB_OPTIONS: { value: Tab; label: string }[] = [
   { value: 'professionals', label: 'Profissionais' },
+  { value: 'students', label: 'Alunos' },
   { value: 'profile', label: 'Perfil' },
 ];
 
@@ -39,12 +51,16 @@ const PROFILE_FIELDS: ProfileField[] = [
 ];
 
 // Area da academia (ator "Academia" do DER): acompanha os profissionais
-// vinculados e mantem os dados de contato da academia.
+// vinculados (Contrata), os alunos matriculados (Matricula) e os dados da academia.
 export default function GymHomeScreen() {
   const theme = useTheme();
   const { gym, token, updateGym, signOut } = useAuth();
   const [tab, setTab] = useState<Tab>('professionals');
   const [professionals, setProfessionals] = useState<GymProfessional[]>([]);
+  const [students, setStudents] = useState<GymStudent[]>([]);
+  const [studentToRemove, setStudentToRemove] = useState<GymStudent | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -55,7 +71,12 @@ export default function GymHomeScreen() {
     setIsLoading(true);
     setError(null);
     try {
-      setProfessionals(await apiRequest<GymProfessional[]>('/gyms/me/professionals', { token }));
+      const [professionalsResult, studentsResult] = await Promise.all([
+        apiRequest<GymProfessional[]>('/gyms/me/professionals', { token }),
+        apiRequest<GymStudent[]>('/gyms/me/students', { token }),
+      ]);
+      setProfessionals(professionalsResult);
+      setStudents(studentsResult);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível carregar os dados da academia.');
     } finally {
@@ -67,7 +88,21 @@ export default function GymHomeScreen() {
     load();
   }, [load]);
 
-  const totalStudents = professionals.reduce((sum, professional) => sum + professional.studentsCount, 0);
+  async function handleRemoveStudent() {
+    if (!studentToRemove || !token) return;
+
+    setIsRemoving(true);
+    setRemoveError(null);
+    try {
+      await apiRequest<void>(`/gyms/me/students/${studentToRemove.id}`, { method: 'DELETE', token });
+      setStudents((current) => current.filter((student) => student.id !== studentToRemove.id));
+      setStudentToRemove(null);
+    } catch (err) {
+      setRemoveError(err instanceof Error ? err.message : 'Não foi possível desmatricular o aluno.');
+    } finally {
+      setIsRemoving(false);
+    }
+  }
 
   return (
     <>
@@ -83,10 +118,10 @@ export default function GymHomeScreen() {
           </ThemedView>
           <ThemedView type="backgroundElement" style={styles.stat}>
             <ThemedText style={styles.statValue} themeColor="accent">
-              {totalStudents}
+              {students.length}
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              Alunos
+              Alunos matriculados
             </ThemedText>
           </ThemedView>
         </View>
@@ -131,6 +166,49 @@ export default function GymHomeScreen() {
               </ThemedView>
             ))
           )
+        ) : tab === 'students' ? (
+          isLoading ? (
+            <ActivityIndicator color={theme.accent} style={styles.loading} />
+          ) : students.length === 0 ? (
+            <ThemedView type="card" style={[styles.card, { borderColor: theme.border }]}>
+              <ThemedText type="small" themeColor="textSecondary">
+                Nenhum aluno matriculado ainda. Os alunos escolhem a academia no cadastro ou em &quot;Perfil&quot;.
+              </ThemedText>
+            </ThemedView>
+          ) : (
+            students.map((student) => (
+              <ThemedView key={student.id} type="card" style={[styles.card, { borderColor: theme.border }]}>
+                <View style={styles.rowBetween}>
+                  <View style={styles.flex}>
+                    <ThemedText type="smallBold">{student.name}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {student.professional ? `Personal: ${student.professional.name}` : 'Sem personal'}
+                      {student.gymEnrolledAt
+                        ? ` · desde ${new Date(student.gymEnrolledAt).toLocaleDateString('pt-BR')}`
+                        : ''}
+                    </ThemedText>
+                  </View>
+                  {student.phone && (
+                    <Pressable hitSlop={8} onPress={() => openWhatsApp(student.phone!)}>
+                      <ThemedText type="link" themeColor="accent">
+                        WhatsApp
+                      </ThemedText>
+                    </Pressable>
+                  )}
+                </View>
+                <Pressable
+                  hitSlop={8}
+                  onPress={() => {
+                    setRemoveError(null);
+                    setStudentToRemove(student);
+                  }}>
+                  <ThemedText type="small" themeColor="danger">
+                    Desmatricular
+                  </ThemedText>
+                </Pressable>
+              </ThemedView>
+            ))
+          )
         ) : (
           <>
             <ThemedView type="card" style={[styles.card, { borderColor: theme.border }]}>
@@ -160,6 +238,17 @@ export default function GymHomeScreen() {
         onSave={(values) =>
           updateGym({ name: values.name, phone: values.phone || null, address: values.address || null })
         }
+      />
+
+      <ConfirmModal
+        visible={studentToRemove !== null}
+        title="Desmatricular aluno"
+        message={`${studentToRemove?.name ?? 'O aluno'} deixará de aparecer como aluno da academia. O vínculo com o personal continua.`}
+        confirmLabel="Desmatricular"
+        isSubmitting={isRemoving}
+        error={removeError}
+        onCancel={() => setStudentToRemove(null)}
+        onConfirm={handleRemoveStudent}
       />
 
       <ConfirmLogoutModal

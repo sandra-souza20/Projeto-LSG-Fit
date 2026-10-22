@@ -6,6 +6,10 @@ export type User = {
   email: string;
   phone?: string | null;
   professionalId?: string | null;
+  // Relacao "Matricula" do DER: academia em que o aluno treina.
+  gymId?: string | null;
+  gymEnrolledAt?: string | null;
+  gym?: { id: string; name: string } | null;
   createdAt: string;
   updatedAt: string;
 };

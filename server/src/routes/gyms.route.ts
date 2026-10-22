@@ -12,3 +12,5 @@ gymsRoutes.get("/", gymsController.listAll);
 gymsRoutes.get("/me", ensureAuthenticated, restrictTo("GYM"), gymsController.me);
 gymsRoutes.patch("/me", ensureAuthenticated, restrictTo("GYM"), gymsController.updateMe);
 gymsRoutes.get("/me/professionals", ensureAuthenticated, restrictTo("GYM"), gymsController.professionals);
+gymsRoutes.get("/me/students", ensureAuthenticated, restrictTo("GYM"), gymsController.students);
+gymsRoutes.delete("/me/students/:studentId", ensureAuthenticated, restrictTo("GYM"), gymsController.removeStudent);

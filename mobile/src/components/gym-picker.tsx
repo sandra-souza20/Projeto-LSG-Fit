@@ -8,18 +8,27 @@ import { useTheme } from '@/hooks/use-theme';
 type GymPickerProps = {
   value: string | null;
   onChange: (gymId: string | null) => void;
+  // Texto da opcao "sem academia": "Autônomo" para o profissional, "Nenhuma" para o aluno.
+  noneLabel?: string;
+  hint?: string;
+  disabled?: boolean;
 };
 
-// Vinculo opcional do profissional com uma academia (relacao "Contrata" do DER).
-export function GymPicker({ value, onChange }: GymPickerProps) {
+// Vinculo opcional com uma academia: "Contrata" (profissional) e "Matricula" (aluno) do DER.
+export function GymPicker({ value, onChange, noneLabel = 'Autônomo', hint, disabled = false }: GymPickerProps) {
   const theme = useTheme();
   const { gyms, isLoading, error } = useGyms();
 
-  const options = [{ id: null, name: 'Autônomo' }, ...gyms];
+  const options = [{ id: null, name: noneLabel }, ...gyms];
 
   return (
     <View style={styles.container}>
       <ThemedText type="smallBold">Academia</ThemedText>
+      {hint && (
+        <ThemedText type="small" themeColor="textSecondary">
+          {hint}
+        </ThemedText>
+      )}
       {isLoading ? (
         <ActivityIndicator color={theme.accent} />
       ) : error ? (
@@ -33,6 +42,9 @@ export function GymPicker({ value, onChange }: GymPickerProps) {
             return (
               <Pressable
                 key={gym.id ?? 'none'}
+                disabled={disabled}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: isSelected, disabled }}
                 onPress={() => onChange(gym.id)}
                 style={[
                   styles.pill,

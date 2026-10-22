@@ -42,3 +42,18 @@ export function useProfessionals() {
 
   return { professionals, isLoading, error, reload: load };
 }
+
+// Ordem para o aluno: primeiro o profissional dele, depois os da academia em
+// que ele esta matriculado, e o resto por nome (a API ja devolve ordenado).
+export function sortProfessionalsForStudent(
+  professionals: ProfessionalSummary[],
+  student: { professionalId?: string | null; gymId?: string | null } | null,
+) {
+  const rank = (professional: ProfessionalSummary) => {
+    if (professional.id === student?.professionalId) return 0;
+    if (student?.gymId && professional.gymId === student.gymId) return 1;
+    return 2;
+  };
+
+  return [...professionals].sort((a, b) => rank(a) - rank(b));
+}

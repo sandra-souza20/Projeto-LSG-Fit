@@ -6,7 +6,11 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
-import { useProfessionals, type ProfessionalSummary } from '@/hooks/use-professionals';
+import {
+  sortProfessionalsForStudent,
+  useProfessionals,
+  type ProfessionalSummary,
+} from '@/hooks/use-professionals';
 import { useTheme } from '@/hooks/use-theme';
 import { callPhone, formatPhone, openWhatsApp, sendEmail } from '@/utils/contact';
 
@@ -40,11 +44,8 @@ export default function ProfessionalsScreen() {
         )
       : professionals;
 
-    // O profissional vinculado ao aluno aparece primeiro.
-    return [...list].sort(
-      (a, b) => Number(b.id === user?.professionalId) - Number(a.id === user?.professionalId),
-    );
-  }, [professionals, search, user?.professionalId]);
+    return sortProfessionalsForStudent(list, user);
+  }, [professionals, search, user]);
 
   async function handleLink(professional: ProfessionalSummary) {
     setLinkingId(professional.id);
@@ -94,6 +95,7 @@ export default function ProfessionalsScreen() {
       ) : (
         filtered.map((professional) => {
           const isMine = professional.id === user?.professionalId;
+          const isFromMyGym = Boolean(user?.gymId && professional.gymId === user.gymId);
 
           return (
             <ThemedView
@@ -112,6 +114,11 @@ export default function ProfessionalsScreen() {
                     {professional.specialty ?? 'Personal trainer'}
                     {professional.gym ? ` · ${professional.gym.name}` : ''}
                   </ThemedText>
+                  {isFromMyGym && !isMine && (
+                    <ThemedText type="small" themeColor="accent">
+                      Da sua academia
+                    </ThemedText>
+                  )}
                 </View>
                 {isMine && (
                   <ThemedView type="accent" style={styles.badge}>

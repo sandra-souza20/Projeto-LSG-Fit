@@ -7,6 +7,19 @@ import { ResetPasswordService } from "../services/reset-password.service.js";
 import { AppError, handleError } from "../utils/app-error.js";
 import { prisma } from "../database/prisma.js";
 
+const USER_SELECT = {
+    id: true,
+    name: true,
+    email: true,
+    phone: true,
+    professionalId: true,
+    gymId: true,
+    gymEnrolledAt: true,
+    gym: { select: { id: true, name: true } },
+    createdAt: true,
+    updatedAt: true,
+} as const;
+
 export class UsersController {
     async create(req: Request, res: Response): Promise<Response> {
         try {
@@ -21,17 +34,9 @@ export class UsersController {
     }
 
     async me(req: Request, res: Response): Promise<Response> {
-        const user = await prisma.user.findUniqueOrThrow({ where: { id: req.userId } });
+        const user = await prisma.user.findUniqueOrThrow({ where: { id: req.userId }, select: USER_SELECT });
 
-        return res.status(200).json({
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            phone: user.phone,
-            professionalId: user.professionalId,
-            createdAt: user.createdAt,
-            updatedAt: user.updatedAt,
-        });
+        return res.status(200).json(user);
     }
 
     // RF04: o aluno pode atualizar as informacoes pessoais exibidas no perfil.
@@ -49,17 +54,10 @@ export class UsersController {
                     ...(name !== undefined ? { name: name.trim() } : {}),
                     ...(phone !== undefined ? { phone: phone?.trim() || null } : {}),
                 },
+                select: USER_SELECT,
             });
 
-            return res.status(200).json({
-                id: user.id,
-                name: user.name,
-                email: user.email,
-                phone: user.phone,
-                professionalId: user.professionalId,
-                createdAt: user.createdAt,
-                updatedAt: user.updatedAt,
-            });
+            return res.status(200).json(user);
         } catch (error) {
             return handleError(error, res);
         }
@@ -88,6 +86,45 @@ export class UsersController {
                 email: user.email,
                 professionalId: user.professionalId,
             });
+        } catch (error) {
+            return handleError(error, res);
+        }
+    }
+
+    // Relacao "Matricula" do DER: o aluno escolhe (ou troca) a academia em que treina.
+    // Enviar gymId null cancela a matricula.
+    async linkGym(req: Request, res: Response): Promise<Response> {
+        try {
+            const { gymId } = req.body as { gymId?: string | null };
+
+            if (gymId === undefined) {
+                throw new AppError("Informe a academia.");
+            }
+
+            if (gymId) {
+                const gym = await prisma.gym.findUnique({ where: { id: gymId } });
+
+                if (!gym) {
+                    throw new AppError("Academia não encontrada.", 404);
+                }
+            }
+
+            const current = await prisma.user.findUniqueOrThrow({
+                where: { id: req.userId },
+                select: { gymId: true },
+            });
+
+            const user = await prisma.user.update({
+                where: { id: req.userId },
+                data: {
+                    gymId: gymId || null,
+                    // A data so muda quando o aluno entra numa academia diferente.
+                    ...(gymId !== current.gymId ? { gymEnrolledAt: gymId ? new Date() : null } : {}),
+                },
+                select: USER_SELECT,
+            });
+
+            return res.status(200).json(user);
         } catch (error) {
             return handleError(error, res);
         }

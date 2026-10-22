@@ -10,6 +10,7 @@ usersRoutes.post("/", usersController.create);
 usersRoutes.get("/me", ensureAuthenticated, restrictTo("STUDENT"), usersController.me);
 usersRoutes.patch("/me", ensureAuthenticated, restrictTo("STUDENT"), usersController.updateMe);
 usersRoutes.patch("/me/professional", ensureAuthenticated, restrictTo("STUDENT"), usersController.linkProfessional);
+usersRoutes.patch("/me/gym", ensureAuthenticated, restrictTo("STUDENT"), usersController.linkGym);
 usersRoutes.post("/verify", usersController.verify);
 usersRoutes.post("/resend-verification", usersController.resendVerification);
 usersRoutes.post("/forgot-password", usersController.forgotPassword);

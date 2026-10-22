@@ -113,4 +113,43 @@ export class GymsController {
             })),
         );
     }
+
+    // Relacao "Matricula" do DER: alunos que treinam nesta academia.
+    // RNF05: a academia ve so dados de contato e vinculo, nunca a ficha de
+    // treino nem as avaliacoes fisicas do aluno.
+    async students(req: Request, res: Response): Promise<Response> {
+        const students = await prisma.user.findMany({
+            where: { gymId: req.userId },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                gymEnrolledAt: true,
+                professional: { select: { id: true, name: true } },
+            },
+            orderBy: { name: "asc" },
+        });
+
+        return res.status(200).json(students);
+    }
+
+    // A academia cancela a matricula de um aluno que saiu. O vinculo com o
+    // profissional nao muda: o personal pode continuar atendendo o aluno.
+    async removeStudent(req: Request, res: Response): Promise<Response> {
+        try {
+            const { count } = await prisma.user.updateMany({
+                where: { id: req.params.studentId as string, gymId: req.userId },
+                data: { gymId: null, gymEnrolledAt: null },
+            });
+
+            if (count === 0) {
+                throw new AppError("Aluno não encontrado nesta academia.", 404);
+            }
+
+            return res.status(204).send();
+        } catch (error) {
+            return handleError(error, res);
+        }
+    }
 }
