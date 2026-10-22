@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ConfirmModal } from '@/components/confirm-modal';
+import { GymReportModal } from '@/components/gym/gym-report-modal';
 import { StudentFrequencyModal } from '@/components/gym/student-frequency-modal';
 import { SegmentedControl } from '@/components/segmented-control';
 import { ThemedText } from '@/components/themed-text';
@@ -63,6 +64,7 @@ export function GymStudentsTab({ students, onStudentRemoved }: GymStudentsTabPro
   const [studentToRemove, setStudentToRemove] = useState<GymStudent | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  const [isReportVisible, setIsReportVisible] = useState(false);
 
   const absentStudents = students.filter(isAbsent);
   const visibleStudents = filter === 'absent' ? absentStudents : students;
@@ -129,6 +131,11 @@ export function GymStudentsTab({ students, onStudentRemoved }: GymStudentsTabPro
             </ThemedText>
           </View>
         </View>
+        <Pressable hitSlop={8} onPress={() => setIsReportVisible(true)} style={styles.reportLink}>
+          <ThemedText type="link" themeColor="accent">
+            Gerar relatório mensal
+          </ThemedText>
+        </Pressable>
       </ThemedView>
 
       <SegmentedControl
@@ -214,6 +221,8 @@ export function GymStudentsTab({ students, onStudentRemoved }: GymStudentsTabPro
         })
       )}
 
+      <GymReportModal visible={isReportVisible} onClose={() => setIsReportVisible(false)} />
+
       <StudentFrequencyModal student={frequencyStudent} onClose={() => setFrequencyStudent(null)} />
 
       <ConfirmModal
@@ -253,6 +262,9 @@ const styles = StyleSheet.create({
     fontSize: 22,
     lineHeight: 28,
     fontWeight: '800',
+  },
+  reportLink: {
+    alignSelf: 'center',
   },
   rowBetween: {
     flexDirection: 'row',
