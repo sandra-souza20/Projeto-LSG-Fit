@@ -1,36 +1,29 @@
 import { prisma } from "../database/prisma.js";
 import { sendVerificationCodeEmail } from "./mailer.js";
-import { AppError } from "../utils/app-error.js";
-import { generateVerificationCode, getVerificationCodeExpiration } from "../utils/verification-code.js";
+import { normalizeEmail } from "../utils/account-email.js";
+import { issueAuthCode } from "../utils/auth-code.js";
 
 type IRequestDto = {
     email: string;
 }
 
+const GENERIC_MESSAGE = "Se houver um cadastro pendente com esse e-mail, um novo código foi enviado.";
+
 export class ResendVerificationCodeService {
     async execute(dto: IRequestDto) {
-        const user = await prisma.user.findUnique({ where: { email: dto.email } });
-
-        if (!user) {
-            throw new AppError("Não encontramos um cadastro com esse e-mail.", 401);
-        }
-
-        if (user.emailVerified) {
-            throw new AppError("E-mail já verificado.");
-        }
-
-        const verificationCode = generateVerificationCode();
-
-        await prisma.user.update({
-            where: { id: user.id },
-            data: {
-                verificationCode,
-                verificationCodeExpiresAt: getVerificationCodeExpiration(),
-            },
+        const user = await prisma.user.findUnique({
+            where: { email: normalizeEmail(dto.email) },
+            select: { id: true, email: true, role: true, emailVerified: true },
         });
 
-        await sendVerificationCodeEmail(user.email, verificationCode);
+        // Sempre a mesma resposta, para nao revelar quais e-mails tem cadastro.
+        if (!user || user.role !== "STUDENT" || user.emailVerified) {
+            return { message: GENERIC_MESSAGE };
+        }
 
-        return { message: "Código reenviado." };
+        const code = await issueAuthCode({ userId: user.id }, "EMAIL_VERIFICATION");
+        await sendVerificationCodeEmail(user.email, code);
+
+        return { message: GENERIC_MESSAGE };
     }
 }

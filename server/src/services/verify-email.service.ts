@@ -1,6 +1,8 @@
 import { prisma } from "../database/prisma.js";
-import { signToken } from "../utils/jwt.js";
 import { AppError } from "../utils/app-error.js";
+import { normalizeEmail } from "../utils/account-email.js";
+import { consumeAuthCode, INVALID_CODE_MESSAGE } from "../utils/auth-code.js";
+import { serializeUser, USER_SELECT } from "../utils/serializers.js";
 
 type IRequestDto = {
     email: string;
@@ -9,43 +11,25 @@ type IRequestDto = {
 
 export class VerifyEmailService {
     async execute(dto: IRequestDto) {
-        const user = await prisma.user.findUnique({ where: { email: dto.email } });
+        const user = await prisma.user.findUnique({
+            where: { email: normalizeEmail(dto.email) },
+            select: { id: true, role: true, emailVerified: true },
+        });
 
-        if (!user) {
-            throw new AppError("Não encontramos um cadastro com esse e-mail.", 401);
+        // Mesma resposta para e-mail inexistente ou ja confirmado, para nao
+        // revelar quais e-mails tem cadastro.
+        if (!user || user.role !== "STUDENT" || user.emailVerified) {
+            throw new AppError(INVALID_CODE_MESSAGE);
         }
 
-        if (user.emailVerified) {
-            throw new AppError("E-mail já verificado.");
-        }
-
-        const isCodeValid = user.verificationCode === dto.code;
-        const isCodeExpired = !user.verificationCodeExpiresAt || user.verificationCodeExpiresAt < new Date();
-
-        if (!isCodeValid || isCodeExpired) {
-            throw new AppError("Código inválido ou expirado.");
-        }
+        await consumeAuthCode({ userId: user.id }, "EMAIL_VERIFICATION", dto.code);
 
         const verifiedUser = await prisma.user.update({
             where: { id: user.id },
-            data: {
-                emailVerified: true,
-                verificationCode: null,
-                verificationCodeExpiresAt: null,
-            },
+            data: { emailVerified: true },
+            select: USER_SELECT,
         });
 
-        const token = signToken(verifiedUser.id, "STUDENT");
-
-        return {
-            user: {
-                id: verifiedUser.id,
-                name: verifiedUser.name,
-                email: verifiedUser.email,
-                createdAt: verifiedUser.createdAt,
-                updatedAt: verifiedUser.updatedAt,
-            },
-            token,
-        };
+        return { user: serializeUser(verifiedUser) };
     }
 }

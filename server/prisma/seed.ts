@@ -1,8 +1,26 @@
+// Seed: biblioteca padrao de exercicios + contas de teste.
+//
+// Contas de teste (todas com a senha "123456"):
+//   Academia (web, POST /gyms/sessions)
+//     academia@lsgfit.com   Academia LSG Centro
+//   Profissionais da academia (mobile, POST /sessions)
+//     ana@lsgfit.com        Ana Souza, ativada
+//     bruno@lsgfit.com      Bruno Lima, ativado
+//     carla@lsgfit.com      Carla Mendes, NAO ativada (sem senha). O codigo de
+//                           convite e impresso no console ao rodar o seed; use
+//                           em POST /users/activate para criar a senha.
+//   Alunos (mobile, POST /sessions)
+//     aluno@lsgfit.com      Diego Alves, matriculado na academia e orientado pela Ana
+//     aluna@lsgfit.com      Elisa Rocha, sem academia e sem profissional
 import "../src/env.js";
+import { hash } from "argon2";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { prisma } from "../src/database/prisma.js";
+import { issueAuthCode } from "../src/utils/auth-code.js";
+
+const SEED_PASSWORD = "123456";
 
 const exercises = [
     // Peito
@@ -223,6 +241,108 @@ function gifUrlFor(name: string) {
     return `/media/exercises/${file}`;
 }
 
+type SeedUser = {
+    name: string;
+    email: string;
+    role: "STUDENT" | "PROFESSIONAL";
+    // null: profissional ainda nao ativado (sem senha).
+    password: string | null;
+    gymId?: string | null;
+    professionalId?: string | null;
+    phone?: string | null;
+    specialty?: string | null;
+    bio?: string | null;
+};
+
+async function upsertUser(user: SeedUser) {
+    const data = {
+        name: user.name,
+        role: user.role,
+        password: user.password ? await hash(user.password) : null,
+        emailVerified: user.password !== null,
+        gymId: user.gymId ?? null,
+        gymEnrolledAt: user.role === "STUDENT" && user.gymId ? new Date() : null,
+        professionalId: user.professionalId ?? null,
+        phone: user.phone ?? null,
+        specialty: user.specialty ?? null,
+        bio: user.bio ?? null,
+    };
+
+    return prisma.user.upsert({ where: { email: user.email }, create: { ...data, email: user.email }, update: data });
+}
+
+// Contas de teste (ver as senhas no topo do arquivo). Rodar o seed de novo
+// restaura os dados abaixo.
+async function seedAccounts() {
+    const gymData = {
+        name: "Academia LSG Centro",
+        password: await hash(SEED_PASSWORD),
+        phone: "(11) 4000-1000",
+        address: "Rua das Flores, 100 - Centro",
+    };
+
+    const gym = await prisma.gym.upsert({
+        where: { email: "academia@lsgfit.com" },
+        create: { ...gymData, email: "academia@lsgfit.com" },
+        update: gymData,
+    });
+
+    const ana = await upsertUser({
+        name: "Ana Souza",
+        email: "ana@lsgfit.com",
+        role: "PROFESSIONAL",
+        password: SEED_PASSWORD,
+        gymId: gym.id,
+        phone: "(11) 98888-0001",
+        specialty: "Musculação",
+        bio: "Personal trainer há 8 anos, foco em hipertrofia e iniciantes.",
+    });
+
+    await upsertUser({
+        name: "Bruno Lima",
+        email: "bruno@lsgfit.com",
+        role: "PROFESSIONAL",
+        password: SEED_PASSWORD,
+        gymId: gym.id,
+        phone: "(11) 98888-0002",
+        specialty: "Funcional",
+        bio: "Treino funcional e condicionamento.",
+    });
+
+    const carla = await upsertUser({
+        name: "Carla Mendes",
+        email: "carla@lsgfit.com",
+        role: "PROFESSIONAL",
+        password: null,
+        gymId: gym.id,
+        specialty: "Pilates",
+    });
+
+    await upsertUser({
+        name: "Diego Alves",
+        email: "aluno@lsgfit.com",
+        role: "STUDENT",
+        password: SEED_PASSWORD,
+        gymId: gym.id,
+        professionalId: ana.id,
+        phone: "(11) 97777-0001",
+    });
+
+    await upsertUser({
+        name: "Elisa Rocha",
+        email: "aluna@lsgfit.com",
+        role: "STUDENT",
+        password: SEED_PASSWORD,
+    });
+
+    // Convite da profissional nao ativada: o codigo so existe aqui (no banco
+    // fica o hash), entao ele e mostrado no console.
+    const inviteCode = await issueAuthCode({ userId: carla.id }, "PROFESSIONAL_INVITE");
+
+    console.log(`Contas de teste criadas (senha "${SEED_PASSWORD}").`);
+    console.log(`Convite de carla@lsgfit.com (POST /users/activate): ${inviteCode}`);
+}
+
 async function main() {
     for (const base of exercises) {
         const exercise = { ...base, gifUrl: gifUrlFor(base.name) };
@@ -235,6 +355,8 @@ async function main() {
     }
 
     console.log(`Seed concluído: ${exercises.length} exercícios verificados/atualizados.`);
+
+    await seedAccounts();
 }
 
 main()
