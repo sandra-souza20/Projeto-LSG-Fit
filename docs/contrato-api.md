@@ -31,6 +31,7 @@ Todo erro responde `{ "message": string, "code"?: string }`.
 | 404 | — | registro não encontrado (inclui sessão de outra conta) |
 | 409 | `EMAIL_IN_USE` | e-mail já pertence a alguma conta |
 | 429 | `RATE_LIMITED` | limite de requisições (ver §6) |
+| 503 | — | Redis fora do ar: rotas que dependem de sessão respondem "Serviço de sessão indisponível. Tente novamente em instantes." |
 
 ## 2. Sessão
 
@@ -218,7 +219,7 @@ type Gym = { id: string; name: string; email: string; phone: string | null; addr
 | `PATCH /gyms/me` | `{ name?, phone?, address? }` | `200 Gym` | 400 |
 | `POST /gyms/forgot-password` | `{ email }` | `200 { message }` (sempre a mesma) | — |
 | `POST /gyms/reset-password` | `{ email, code, password, confirmPassword }` | `200 { gym, csrfToken }` + cookie (sem "lembrar"); revoga as outras sessões | 400 |
-| `GET /gyms` (público) | — | `200 [{ id, name, address }]`, sem mudança | — |
+| `GET /gyms` (público) | — | `200 [{ id, name, email, phone, address }]`, sem mudança (o mobile usa `phone`) | — |
 
 ### Profissionais da academia
 | Rota | Corpo | Sucesso | Erros |
@@ -246,7 +247,7 @@ Usa Redis (`rate-limit-redis`), com chaves `rl:*` e o e-mail em `sha256` minúsc
 
 | Grupo | Rotas | Chave | Limite |
 |---|---|---|---|
-| Geral | todas | IP | 300 / min |
+| Geral | todas, exceto os arquivos estáticos de `/media` (cache longo) | IP | 300 / min |
 | Login (conta só falhas) | `POST /sessions`, `POST /gyms/sessions` | e-mail + IP | 5 / 15 min |
 | | | e-mail | 20 / h |
 | | | IP | 50 / h |
