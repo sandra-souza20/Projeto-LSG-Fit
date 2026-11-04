@@ -44,8 +44,9 @@ function RootNavigator() {
       <Stack.Protected guard={isAuthenticated && role === 'PROFESSIONAL'}>
         <Stack.Screen name="(professional)" />
       </Stack.Protected>
-      <Stack.Protected guard={isAuthenticated && role === 'GYM'}>
-        <Stack.Screen name="(gym)" />
+      {/* Dispositivos conectados: aberta pelo perfil do aluno e do profissional. */}
+      <Stack.Protected guard={isAuthenticated}>
+        <Stack.Screen name="devices" />
       </Stack.Protected>
     </Stack>
   );

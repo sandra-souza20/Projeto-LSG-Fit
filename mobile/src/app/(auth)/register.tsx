@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AuthCard } from '@/components/auth-card';
 import { AuthScreen } from '@/components/auth-screen';
@@ -8,6 +8,7 @@ import { GymPicker } from '@/components/gym-picker';
 import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
+import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 
 export default function RegisterScreen() {
@@ -61,14 +62,20 @@ export default function RegisterScreen() {
         title="Criar conta"
         subtitle="Preencha os dados para começar"
         footer={
-          <Pressable hitSlop={8} onPress={() => router.push('/')}>
-            <ThemedText type="small" themeColor="textSecondary" style={styles.footerText}>
-              Já tem uma conta?{' '}
-              <ThemedText type="link" themeColor="accent">
-                Entrar
+          <View style={styles.footer}>
+            <Pressable hitSlop={8} onPress={() => router.push('/')}>
+              <ThemedText type="small" themeColor="textSecondary" style={styles.footerText}>
+                Já tem uma conta?{' '}
+                <ThemedText type="link" themeColor="accent">
+                  Entrar
+                </ThemedText>
               </ThemedText>
+            </Pressable>
+            {/* O profissional e cadastrado pela academia no app web e ativa a conta pelo codigo. */}
+            <ThemedText type="small" themeColor="textSecondary" style={styles.footerText}>
+              É profissional? Peça o acesso à sua academia.
             </ThemedText>
-          </Pressable>
+          </View>
         }>
         <TextField label="Nome completo" placeholder="Seu nome" value={name} onChangeText={setName} />
         <TextField
@@ -106,6 +113,10 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
+  footer: {
+    gap: Spacing.three,
+    alignItems: 'center',
+  },
   footerText: {
     textAlign: 'center',
   },

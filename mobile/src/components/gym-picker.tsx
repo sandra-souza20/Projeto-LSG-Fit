@@ -8,14 +8,14 @@ import { useTheme } from '@/hooks/use-theme';
 type GymPickerProps = {
   value: string | null;
   onChange: (gymId: string | null) => void;
-  // Texto da opcao "sem academia": "Autônomo" para o profissional, "Nenhuma" para o aluno.
+  // Texto da opcao "sem academia".
   noneLabel?: string;
   hint?: string;
   disabled?: boolean;
 };
 
-// Vinculo opcional com uma academia: "Contrata" (profissional) e "Matricula" (aluno) do DER.
-export function GymPicker({ value, onChange, noneLabel = 'Autônomo', hint, disabled = false }: GymPickerProps) {
+// Vinculo opcional do aluno com uma academia ("Matricula" do DER).
+export function GymPicker({ value, onChange, noneLabel = 'Nenhuma', hint, disabled = false }: GymPickerProps) {
   const theme = useTheme();
   const { gyms, isLoading, error } = useGyms();
 

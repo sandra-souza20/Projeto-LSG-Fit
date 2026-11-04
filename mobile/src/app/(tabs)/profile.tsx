@@ -214,6 +214,18 @@ export default function ProfileScreen() {
           <ThemeToggleRow />
         </ThemedView>
 
+        <ThemedText type="smallBold" style={styles.sectionTitle}>
+          Segurança
+        </ThemedText>
+        <Pressable onPress={() => router.push('/devices')}>
+          <ThemedView type="card" style={[styles.card, styles.linkRow, { borderColor: theme.border }]}>
+            <ThemedText type="small">Dispositivos conectados</ThemedText>
+            <ThemedText type="link" themeColor="accent">
+              Ver
+            </ThemedText>
+          </ThemedView>
+        </Pressable>
+
         <Pressable
           onPress={() => setIsLogoutModalVisible(true)}
           style={({ pressed }) => [styles.logout, { borderColor: theme.danger }, pressed && styles.pressed]}>
@@ -283,6 +295,11 @@ const styles = StyleSheet.create({
     borderRadius: Radius.large,
     padding: Spacing.three,
     gap: Spacing.two,
+  },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   statsRow: {
     flexDirection: 'row',

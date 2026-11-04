@@ -9,7 +9,7 @@ export type GymSummary = {
   address: string | null;
 };
 
-// Lista publica: usada tambem no cadastro do profissional, antes do login.
+// Lista publica: usada tambem no cadastro do aluno, antes do login.
 export function useGyms() {
   const [gyms, setGyms] = useState<GymSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);

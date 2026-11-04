@@ -1,8 +1,9 @@
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ConfirmLogoutModal } from '@/components/confirm-logout-modal';
-import { GymPicker } from '@/components/gym-picker';
+import { InfoRow } from '@/components/info-row';
 import { PrimaryButton } from '@/components/primary-button';
 import { Screen } from '@/components/screen';
 import { TextField } from '@/components/text-field';
@@ -16,12 +17,12 @@ import { useTheme } from '@/hooks/use-theme';
 // Os dados preenchidos aqui sao os que o aluno ve na Pagina de Perfis (RF05).
 export default function ProfessionalProfileScreen() {
   const theme = useTheme();
-  const { professional, updateProfessional, signOut } = useAuth();
-  const [name, setName] = useState(professional?.name ?? '');
-  const [phone, setPhone] = useState(professional?.phone ?? '');
-  const [specialty, setSpecialty] = useState(professional?.specialty ?? '');
-  const [bio, setBio] = useState(professional?.bio ?? '');
-  const [gymId, setGymId] = useState<string | null>(professional?.gymId ?? null);
+  const router = useRouter();
+  const { user, updateUser, signOut } = useAuth();
+  const [name, setName] = useState(user?.name ?? '');
+  const [phone, setPhone] = useState(user?.phone ?? '');
+  const [specialty, setSpecialty] = useState(user?.specialty ?? '');
+  const [bio, setBio] = useState(user?.bio ?? '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -34,18 +35,6 @@ export default function ProfessionalProfileScreen() {
     return () => clearTimeout(timeout);
   }, [savedAt]);
 
-  const savedGymId = professional?.gymId ?? null;
-  const gymStatusMessage =
-    gymId !== savedGymId
-      ? gymId
-        ? 'Ao salvar, a academia precisa aprovar o vínculo antes de ele aparecer para os alunos.'
-        : null
-      : professional?.gymStatus === 'PENDING'
-        ? 'Aguardando a academia aprovar o vínculo. Enquanto isso, você aparece como autônomo para os alunos.'
-        : professional?.gymStatus === 'ACTIVE'
-          ? 'Vínculo aprovado pela academia.'
-          : null;
-
   async function handleSave() {
     if (!name.trim()) {
       setError('Informe o seu nome.');
@@ -55,12 +44,11 @@ export default function ProfessionalProfileScreen() {
     setIsSubmitting(true);
     setError(null);
     try {
-      await updateProfessional({
+      await updateUser({
         name: name.trim(),
         phone: phone.trim() || null,
         specialty: specialty.trim() || null,
         bio: bio.trim() || null,
-        gymId,
       });
       setSavedAt(Date.now());
     } catch (err) {
@@ -80,7 +68,7 @@ export default function ProfessionalProfileScreen() {
 
         <ThemedView type="card" style={[styles.card, { borderColor: theme.border }]}>
           <TextField label="Nome" autoCapitalize="words" value={name} onChangeText={setName} />
-          <TextField label="E-mail" value={professional?.email ?? ''} editable={false} />
+          <TextField label="E-mail" value={user?.email ?? ''} editable={false} />
           <TextField
             label="WhatsApp / telefone"
             placeholder="(15) 99999-9999"
@@ -104,14 +92,6 @@ export default function ProfessionalProfileScreen() {
             value={bio}
             onChangeText={setBio}
           />
-          <GymPicker value={gymId} onChange={setGymId} />
-          {gymStatusMessage && (
-            <ThemedText
-              type="small"
-              themeColor={professional?.gymStatus === 'ACTIVE' && gymId === savedGymId ? 'accent' : 'textSecondary'}>
-              {gymStatusMessage}
-            </ThemedText>
-          )}
 
           {error && (
             <ThemedText type="small" themeColor="danger">
@@ -127,9 +107,26 @@ export default function ProfessionalProfileScreen() {
           <PrimaryButton label="Salvar perfil" isLoading={isSubmitting} onPress={handleSave} />
         </ThemedView>
 
+        {/* A academia cadastra o profissional no app web; aqui o vinculo e so informativo. */}
+        <ThemedView type="card" style={[styles.card, { borderColor: theme.border }]}>
+          <InfoRow label="Academia" value={user?.gym?.name} placeholder="Nenhuma" />
+          <ThemedText type="small" themeColor="textSecondary">
+            A academia que cadastrou você é quem gerencia esse vínculo.
+          </ThemedText>
+        </ThemedView>
+
         <ThemedView type="card" style={[styles.card, { borderColor: theme.border }]}>
           <ThemeToggleRow />
         </ThemedView>
+
+        <Pressable onPress={() => router.push('/devices')}>
+          <ThemedView type="card" style={[styles.card, styles.linkRow, { borderColor: theme.border }]}>
+            <ThemedText type="smallBold">Dispositivos conectados</ThemedText>
+            <ThemedText type="link" themeColor="accent">
+              Ver
+            </ThemedText>
+          </ThemedView>
+        </Pressable>
 
         <View>
           <Pressable
@@ -160,6 +157,11 @@ const styles = StyleSheet.create({
     borderRadius: Radius.large,
     padding: Spacing.three,
     gap: Spacing.three,
+  },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   multiline: {
     minHeight: 100,

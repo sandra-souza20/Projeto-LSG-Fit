@@ -17,7 +17,7 @@ import type { Exercise } from '@/types/exercise';
 // cadastra novos exercicios com descricao e video demonstrativo.
 export default function ExerciseLibraryScreen() {
   const theme = useTheme();
-  const { token, professional } = useAuth();
+  const { token, user } = useAuth();
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -57,10 +57,10 @@ export default function ExerciseLibraryScreen() {
     return exercises.filter(
       (exercise) =>
         (!groupFilter || exercise.muscleGroup === groupFilter) &&
-        (!onlyMine || exercise.createdByProfessionalId === professional?.id) &&
+        (!onlyMine || exercise.createdByProfessionalId === user?.id) &&
         (!query || exercise.name.toLowerCase().includes(query)),
     );
-  }, [exercises, search, groupFilter, onlyMine, professional?.id]);
+  }, [exercises, search, groupFilter, onlyMine, user?.id]);
 
   async function handleCreate(input: CreateExerciseInput) {
     setIsSubmitting(true);
@@ -164,7 +164,7 @@ export default function ExerciseLibraryScreen() {
           filtered.map((exercise) => (
             <View key={exercise.id} style={styles.item}>
               <ExerciseCatalogItem exercise={exercise} variant="view" onPress={() => setPreviewExercise(exercise)} />
-              {exercise.createdByProfessionalId === professional?.id && (
+              {exercise.createdByProfessionalId === user?.id && (
                 <Pressable hitSlop={8} onPress={() => handleRemove(exercise)} style={styles.removeButton}>
                   <ThemedText type="small" themeColor="danger">
                     Remover exercício cadastrado por você
