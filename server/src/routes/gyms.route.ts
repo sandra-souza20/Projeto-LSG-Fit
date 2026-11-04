@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { GymsController } from "../controllers/gyms.controller.js";
+import { checkWebOrigin } from "../middlewares/check-web-origin.js";
 import { ensureAuthenticated, restrictTo } from "../middlewares/ensure-authenticated.js";
 import {
     codeVerifyRateLimit,
@@ -13,10 +14,10 @@ export const gymsRoutes = Router();
 const gymsController = new GymsController();
 
 // Autenticacao da academia (app web, sessao por cookie).
-gymsRoutes.post("/", signupRateLimit, gymsController.create);
-gymsRoutes.post("/sessions", loginRateLimit, gymsController.login);
-gymsRoutes.post("/forgot-password", emailSendRateLimit, gymsController.forgotPassword);
-gymsRoutes.post("/reset-password", codeVerifyRateLimit, gymsController.resetPassword);
+gymsRoutes.post("/", checkWebOrigin, signupRateLimit, gymsController.create);
+gymsRoutes.post("/sessions", checkWebOrigin, loginRateLimit, gymsController.login);
+gymsRoutes.post("/forgot-password", checkWebOrigin, emailSendRateLimit, gymsController.forgotPassword);
+gymsRoutes.post("/reset-password", checkWebOrigin, codeVerifyRateLimit, gymsController.resetPassword);
 gymsRoutes.get("/", gymsController.listAll);
 
 gymsRoutes.get("/me", ensureAuthenticated, restrictTo("GYM"), gymsController.me);
