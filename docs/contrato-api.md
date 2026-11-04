@@ -96,7 +96,7 @@ O `JWT_SECRET` deixa de existir.
 ## 3. Rotas de sessão (todas as contas)
 
 ### `POST /sessions` — login de aluno ou profissional (mobile)
-Headers: `X-Device-Name: iPhone 15 · iOS 18` (opcional).
+Headers: `X-Device-Name: iPhone 15 - iOS 18` (opcional, só caracteres ASCII: o Android recusa headers com outros caracteres).
 ```json
 { "email": "aluno@email.com", "password": "..." }
 ```
