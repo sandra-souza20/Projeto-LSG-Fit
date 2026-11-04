@@ -5,6 +5,7 @@ import {
     revokeAllSessions,
     revokeSession,
     type AccountType,
+    type ResolvedSession,
 } from "../utils/session.js";
 import { handleError } from "../utils/app-error.js";
 
@@ -16,8 +17,9 @@ function accountTypeOf(req: Request): AccountType {
 
 export class SessionManagementController {
     async csrf(req: Request, res: Response): Promise<Response> {
-        // Provisório: a versão final lê o csrfToken da sessão atual.
-        return res.status(200).json({ csrfToken: null });
+        // Sessão resolvida pelo ensureAuthenticated. Bearer não tem CSRF (null).
+        const session = res.locals["session"] as ResolvedSession | undefined;
+        return res.status(200).json({ csrfToken: session?.csrfToken ?? null });
     }
 
     async list(req: Request, res: Response): Promise<Response> {
