@@ -1,75 +1,59 @@
-export type ActorRole = 'STUDENT' | 'PROFESSIONAL' | 'GYM';
-
-export type GymLinkStatus = 'PENDING' | 'ACTIVE';
+// Tipos da conta de aluno e de profissional (contrato da API, secao 4).
+// A academia usa o app web e nao aparece mais no mobile.
+export type UserRole = 'STUDENT' | 'PROFESSIONAL';
 
 export type User = {
   id: string;
   name: string;
   email: string;
-  phone?: string | null;
-  professionalId?: string | null;
-  // Relacao "Matricula" do DER: academia em que o aluno treina.
-  gymId?: string | null;
-  gymEnrolledAt?: string | null;
-  gym?: { id: string; name: string } | null;
+  role: UserRole;
+  phone: string | null;
+  // Aluno: profissional que o orienta (relacao "Orienta"); null para profissional.
+  professionalId: string | null;
+  // Aluno: academia da matricula. Profissional: academia que o contratou.
+  gymId: string | null;
+  gym: { id: string; name: string } | null;
+  // So aluno (null para profissional).
+  gymEnrolledAt: string | null;
+  // So profissional (null para aluno).
+  specialty: string | null;
+  bio: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
-export type Professional = {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string | null;
-  specialty?: string | null;
-  bio?: string | null;
-  gymId?: string | null;
-  // Relacao "Contrata": PENDING ate a academia aprovar o vinculo.
-  gymStatus?: GymLinkStatus | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type Gym = {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string | null;
-  address?: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type AuthResponse = {
+// Resposta das rotas que criam sessao: login, confirmacao de e-mail,
+// redefinicao de senha e ativacao da conta do profissional.
+export type SessionResponse = {
   user: User;
   token: string;
-};
-
-export type ProfessionalAuthResponse = {
-  professional: Professional;
-  token: string;
-};
-
-export type GymAuthResponse = {
-  gym: Gym;
-  token: string;
+  sessionId: string;
 };
 
 export type RegisterResponse = {
   user: User;
   message: string;
-  // Presente quando o servidor dispensa a confirmacao por e-mail.
+  // Presentes quando o servidor dispensa a confirmacao por e-mail.
   token?: string;
-};
-
-export type ProfessionalRegisterResponse = {
-  professional: Professional;
-};
-
-export type GymRegisterResponse = {
-  gym: Gym;
+  sessionId?: string;
 };
 
 export type MessageResponse = {
   message: string;
+};
+
+// Item de GET /sessions (dispositivos conectados).
+export type SessionListItem = {
+  id: string;
+  current: boolean;
+  device: {
+    browser: string | null;
+    os: string | null;
+    type: 'desktop' | 'mobile' | 'tablet' | null;
+  };
+  deviceName: string | null;
+  ip: string;
+  remember: boolean;
+  createdAt: string;
+  lastActiveAt: string;
 };

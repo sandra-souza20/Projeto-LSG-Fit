@@ -23,7 +23,7 @@ function lastWorkoutLabel(iso: string | null) {
 export default function ProfessionalStudentsScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { professional, signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const { students, isLoading, error, reload } = useProfessionalStudents();
   const [search, setSearch] = useState('');
   const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
@@ -45,7 +45,7 @@ export default function ProfessionalStudentsScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <AppHeader name={professional?.name ?? ''} onLogout={() => setIsLogoutModalVisible(true)} />
+        <AppHeader name={user?.name ?? ''} onLogout={() => setIsLogoutModalVisible(true)} />
 
         <View style={styles.quickActions}>
           <Pressable style={styles.quickAction} onPress={() => router.push('/exercise-library')}>
