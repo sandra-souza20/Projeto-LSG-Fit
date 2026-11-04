@@ -7,57 +7,45 @@ datasource db {
   provider = "postgresql"
 }
 
+enum UserRole {
+  STUDENT
+  PROFESSIONAL
+}
+
+// Conta do app mobile: aluno ou profissional (ator "Professor" do DER),
+// conforme o campo role. Um papel por conta.
 model User {
   id String @id @default(uuid()) @db.Uuid
   name String
   email String @unique
-  password String
+  role UserRole @default(STUDENT)
+  // Null enquanto o profissional nao ativa a conta com o codigo de convite.
+  password String?
   emailVerified Boolean @default(false) @map("email_verified")
-  verificationCode String? @map("verification_code")
-  verificationCodeExpiresAt DateTime? @map("verification_code_expires_at")
-  resetPasswordCode String? @map("reset_password_code")
-  resetPasswordCodeExpiresAt DateTime? @map("reset_password_code_expires_at")
+  // Aluno: profissional que o orienta (relacao "Orienta" do DER).
   professionalId String? @map("professional_id") @db.Uuid
-  // Relacao "Matricula" do DER: academia em que o aluno treina.
+  // Aluno: academia em que treina (relacao "Matricula" do DER).
+  // Profissional: academia que o contratou (relacao "Contrata" do DER).
   gymId String? @map("gym_id") @db.Uuid
   gymEnrolledAt DateTime? @map("gym_enrolled_at")
   phone String?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
-
-  professional Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
-  gym Gym? @relation(fields: [gymId], references: [id], onDelete: SetNull)
-  workoutEntries WorkoutEntry[]
-  physicalAssessments PhysicalAssessment[]
-  workoutSessions WorkoutSession[]
-
-  @@map("users")
-}
-
-// Corresponde ao ator "Professor" do DER: cada Professional pode estar vinculado
-// a uma Gym (relacao Contrata) e orienta varios alunos (relacao Orienta).
-model Professional {
-  id String @id @default(uuid()) @db.Uuid
-  name String
-  email String @unique
-  password String
-  gymId String? @map("gym_id") @db.Uuid
-  // Relacao "Contrata": o vinculo fica pendente ate a academia aprovar.
-  // Null quando o profissional e autonomo.
-  gymStatus GymLinkStatus? @map("gym_status")
-  // RF05: dados exibidos na "Pagina de Perfis" para o aluno contatar o profissional.
-  phone String?
+  // RF05: dados do profissional exibidos na "Pagina de Perfis".
   specialty String?
   bio String?
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
 
+  professional User? @relation("Orienta", fields: [professionalId], references: [id], onDelete: SetNull)
+  students User[] @relation("Orienta")
   gym Gym? @relation(fields: [gymId], references: [id], onDelete: SetNull)
-  students User[]
-  recordedAssessments PhysicalAssessment[]
+  workoutEntries WorkoutEntry[]
+  physicalAssessments PhysicalAssessment[] @relation("AvaliacaoDoAluno")
+  recordedAssessments PhysicalAssessment[] @relation("AvaliacaoRegistrada")
+  workoutSessions WorkoutSession[]
   createdExercises Exercise[]
+  authCodes AuthCode[]
 
-  @@map("professionals")
+  @@map("users")
 }
 
 // Corresponde ao ator "Academia" do DER.
@@ -71,10 +59,39 @@ model Gym {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
 
-  professionals Professional[]
-  students User[]
+  // Alunos matriculados e profissionais contratados (diferenciar pelo role).
+  users User[]
+  authCodes AuthCode[]
 
   @@map("gyms")
+}
+
+enum AuthCodePurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+  PROFESSIONAL_INVITE
+}
+
+// Codigos de 6 digitos enviados por e-mail (confirmacao de cadastro,
+// redefinicao de senha e convite do profissional). Guarda so o hash sha256.
+// Cada codigo pertence a exatamente uma conta, um usuario OU uma academia
+// (garantido por um CHECK na migracao).
+model AuthCode {
+  id String @id @default(uuid()) @db.Uuid
+  purpose AuthCodePurpose
+  codeHash String @map("code_hash")
+  expiresAt DateTime @map("expires_at")
+  attempts Int @default(0)
+  userId String? @map("user_id") @db.Uuid
+  gymId String? @map("gym_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gym Gym? @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([gymId, purpose])
+  @@map("auth_codes")
 }
 
 model Exercise {
@@ -91,15 +108,10 @@ model Exercise {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
 
-  createdByProfessional Professional? @relation(fields: [createdByProfessionalId], references: [id], onDelete: SetNull)
+  createdByProfessional User? @relation(fields: [createdByProfessionalId], references: [id], onDelete: SetNull)
   workoutEntries WorkoutEntry[]
 
   @@map("exercises")
-}
-
-enum GymLinkStatus {
-  PENDING
-  ACTIVE
 }
 
 enum Weekday {
@@ -163,8 +175,8 @@ model PhysicalAssessment {
   notes String?
   createdAt DateTime @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  recordedByProfessional Professional? @relation(fields: [recordedByProfessionalId], references: [id], onDelete: SetNull)
+  user User @relation("AvaliacaoDoAluno", fields: [userId], references: [id], onDelete: Cascade)
+  recordedByProfessional User? @relation("AvaliacaoRegistrada", fields: [recordedByProfessionalId], references: [id], onDelete: SetNull)
 
   @@map("physical_assessments")
 }
