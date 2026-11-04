@@ -3,8 +3,9 @@ import { prisma } from "../database/prisma.js";
 import { sendVerificationCodeEmail } from "./mailer.js";
 import { AppError } from "../utils/app-error.js";
 import { emailVerificationEnabled } from "../utils/email-verification.js";
-import { signToken } from "../utils/jwt.js";
-import { generateVerificationCode, getVerificationCodeExpiration } from "../utils/verification-code.js";
+import { ensureEmailAvailable, isValidEmail, normalizeEmail } from "../utils/account-email.js";
+import { issueAuthCode } from "../utils/auth-code.js";
+import { serializeUser, USER_SELECT } from "../utils/serializers.js";
 
 type IRequestDto = {
     name: string;
@@ -15,19 +16,37 @@ type IRequestDto = {
     gymId?: string | null;
 }
 
+// Cadastro livre, so de aluno. Profissionais sao cadastrados pela academia.
 export class CreateUserService {
     async execute(dto: IRequestDto) {
+        const name = dto.name?.trim();
+        const email = normalizeEmail(dto.email);
+
+        if (!name) {
+            throw new AppError("Informe o seu nome.");
+        }
+
+        if (!isValidEmail(email)) {
+            throw new AppError("Informe um e-mail válido.");
+        }
+
+        if (!dto.password) {
+            throw new AppError("Informe a senha.");
+        }
+
         if (dto.password !== dto.confirmPassword) {
             throw new AppError("As senhas não coincidem.");
         }
 
-        const emailInUse = await prisma.user.findUnique({ where: { email: dto.email } });
+        // Um cadastro de aluno que nunca foi confirmado nao prende o e-mail:
+        // quem tentar de novo sobrescreve os dados pendentes e recebe um codigo novo.
+        const existing = await prisma.user.findUnique({
+            where: { email },
+            select: { id: true, role: true, emailVerified: true },
+        });
+        const pendingStudent = existing?.role === "STUDENT" && !existing.emailVerified ? existing : null;
 
-        // Um cadastro que nunca foi confirmado nao prende o e-mail: quem tentar
-        // de novo sobrescreve os dados pendentes e recebe um codigo novo.
-        if (emailInUse?.emailVerified) {
-            throw new AppError("Este e-mail já está em uso.");
-        }
+        await ensureEmailAvailable(email, pendingStudent ? { ignoreUserId: pendingStudent.id } : {});
 
         const gymId = dto.gymId || null;
 
@@ -39,59 +58,36 @@ export class CreateUserService {
             }
         }
 
-        const enrollment = { gymId, gymEnrolledAt: gymId ? new Date() : null };
-
         const hashedPassword = await hash(dto.password);
 
-        if (!emailVerificationEnabled) {
-            const data = { name: dto.name, password: hashedPassword, emailVerified: true, ...enrollment };
-
-            const user = await prisma.user.upsert({
-                where: { email: dto.email },
-                create: { ...data, email: dto.email },
-                update: data,
-            });
-
-            return {
-                user: {
-                    id: user.id,
-                    name: user.name,
-                    email: user.email,
-                    createdAt: user.createdAt,
-                    updatedAt: user.updatedAt,
-                },
-                token: signToken(user.id, "STUDENT"),
-                message: "Cadastro criado.",
-            };
-        }
-
-        const verificationCode = generateVerificationCode();
-
         const data = {
-            name: dto.name,
+            name,
             password: hashedPassword,
-            verificationCode,
-            verificationCodeExpiresAt: getVerificationCodeExpiration(),
-            ...enrollment,
+            role: "STUDENT" as const,
+            gymId,
+            gymEnrolledAt: gymId ? new Date() : null,
+            emailVerified: !emailVerificationEnabled,
         };
 
         const user = await prisma.user.upsert({
-            where: { email: dto.email },
-            create: { ...data, email: dto.email },
+            where: { email },
+            create: { ...data, email },
             update: data,
+            select: USER_SELECT,
         });
 
-        await sendVerificationCodeEmail(user.email, verificationCode);
+        if (!emailVerificationEnabled) {
+            // O controller cria a sessao: a conta ja nasce confirmada.
+            return { user: serializeUser(user), message: "Cadastro criado.", startSession: true };
+        }
+
+        const code = await issueAuthCode({ userId: user.id }, "EMAIL_VERIFICATION");
+        await sendVerificationCodeEmail(user.email, code);
 
         return {
-            user: {
-                id: user.id,
-                name: user.name,
-                email: user.email,
-                createdAt: user.createdAt,
-                updatedAt: user.updatedAt,
-            },
+            user: serializeUser(user),
             message: "Cadastro criado. Verifique o código enviado para o seu e-mail.",
+            startSession: false,
         };
     }
 }

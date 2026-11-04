@@ -1,148 +1,40 @@
 import type { Request, Response } from "express";
-import { CreateProfessionalService } from "../services/create-professional.service.js";
-import { AuthenticateProfessionalService } from "../services/authenticate-professional.service.js";
 import { AppError, handleError } from "../utils/app-error.js";
 import { prisma } from "../database/prisma.js";
 import { listSessionsInRange } from "./workout-sessions.controller.js";
-import type { GymLinkStatus } from "../../prisma/client/enums.js";
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
-function serializeProfessional(professional: {
-    id: string;
-    name: string;
-    email: string;
-    phone: string | null;
-    specialty: string | null;
-    bio: string | null;
-    gymId: string | null;
-    gymStatus: GymLinkStatus | null;
-    createdAt: Date;
-    updatedAt: Date;
-}) {
-    return {
-        id: professional.id,
-        name: professional.name,
-        email: professional.email,
-        phone: professional.phone,
-        specialty: professional.specialty,
-        bio: professional.bio,
-        gymId: professional.gymId,
-        gymStatus: professional.gymStatus,
-        createdAt: professional.createdAt,
-        updatedAt: professional.updatedAt,
-    };
-}
-
+// O perfil do proprio profissional fica em /users/me (docs/contrato-api.md, secao 4).
 export class ProfessionalsController {
-    async create(req: Request, res: Response): Promise<Response> {
-        try {
-            const createProfessional = new CreateProfessionalService();
-
-            const result = await createProfessional.execute(req.body);
-
-            return res.status(201).json(result);
-        } catch (error) {
-            return handleError(error, res);
-        }
-    }
-
-    async login(req: Request, res: Response): Promise<Response> {
-        try {
-            const authenticateProfessional = new AuthenticateProfessionalService();
-
-            const result = await authenticateProfessional.execute(req.body);
-
-            return res.status(200).json(result);
-        } catch (error) {
-            return handleError(error, res);
-        }
-    }
-
-    async me(req: Request, res: Response): Promise<Response> {
-        const professional = await prisma.professional.findUniqueOrThrow({ where: { id: req.userId } });
-
-        return res.status(200).json(serializeProfessional(professional));
-    }
-
-    // Dados exibidos para os alunos na Pagina de Perfis (RF05).
-    async updateMe(req: Request, res: Response): Promise<Response> {
-        try {
-            const { name, phone, specialty, bio, gymId } = req.body as {
-                name?: string;
-                phone?: string | null;
-                specialty?: string | null;
-                bio?: string | null;
-                gymId?: string | null;
-            };
-
-            if (name !== undefined && !name.trim()) {
-                throw new AppError("Informe o seu nome.");
-            }
-
-            if (gymId) {
-                const gym = await prisma.gym.findUnique({ where: { id: gymId } });
-
-                if (!gym) {
-                    throw new AppError("Academia não encontrada.", 404);
-                }
-            }
-
-            const current = await prisma.professional.findUniqueOrThrow({
-                where: { id: req.userId },
-                select: { gymId: true },
-            });
-
-            // Relacao "Contrata": ao entrar numa academia diferente o vinculo volta
-            // a ficar pendente ate a academia aprovar.
-            const gymChange =
-                gymId !== undefined && (gymId || null) !== current.gymId
-                    ? { gymId: gymId || null, gymStatus: gymId ? ("PENDING" as const) : null }
-                    : {};
-
-            const professional = await prisma.professional.update({
-                where: { id: req.userId },
-                data: {
-                    ...(name !== undefined ? { name: name.trim() } : {}),
-                    ...(phone !== undefined ? { phone: phone?.trim() || null } : {}),
-                    ...(specialty !== undefined ? { specialty: specialty?.trim() || null } : {}),
-                    ...(bio !== undefined ? { bio: bio?.trim() || null } : {}),
-                    ...gymChange,
-                },
-            });
-
-            return res.status(200).json(serializeProfessional(professional));
-        } catch (error) {
-            return handleError(error, res);
-        }
-    }
-
+    // Pagina de Perfis (RF05): so profissionais que ja ativaram a conta.
     async listAll(req: Request, res: Response): Promise<Response> {
-        const professionals = await prisma.professional.findMany({
-            select: {
-                id: true,
-                name: true,
-                email: true,
-                phone: true,
-                specialty: true,
-                bio: true,
-                gymId: true,
-                gymStatus: true,
-                gym: { select: { id: true, name: true } },
-                _count: { select: { students: true } },
-            },
-            orderBy: { name: "asc" },
-        });
+        try {
+            const professionals = await prisma.user.findMany({
+                where: { role: "PROFESSIONAL", password: { not: null } },
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    phone: true,
+                    specialty: true,
+                    bio: true,
+                    gymId: true,
+                    gym: { select: { id: true, name: true } },
+                    _count: { select: { students: true } },
+                },
+                orderBy: { name: "asc" },
+            });
 
-        // A academia so aparece no perfil publico depois que ela aprova o vinculo.
-        return res.status(200).json(
-            professionals.map(({ _count, gymStatus, gymId, gym, ...professional }) => ({
-                ...professional,
-                gymId: gymStatus === "ACTIVE" ? gymId : null,
-                gym: gymStatus === "ACTIVE" ? gym : null,
-                studentsCount: _count.students,
-            })),
-        );
+            return res.status(200).json(
+                professionals.map(({ _count, ...professional }) => ({
+                    ...professional,
+                    studentsCount: _count.students,
+                })),
+            );
+        } catch (error) {
+            return handleError(error, res);
+        }
     }
 
     // Lista os alunos com um resumo da frequencia, para o profissional ter
@@ -151,7 +43,7 @@ export class ProfessionalsController {
         const since = new Date(Date.now() - THIRTY_DAYS_MS);
 
         const students = await prisma.user.findMany({
-            where: { professionalId: req.userId },
+            where: { professionalId: req.userId, role: "STUDENT" },
             select: {
                 id: true,
                 name: true,

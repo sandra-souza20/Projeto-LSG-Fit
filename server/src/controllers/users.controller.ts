@@ -4,71 +4,97 @@ import { VerifyEmailService } from "../services/verify-email.service.js";
 import { ResendVerificationCodeService } from "../services/resend-verification-code.service.js";
 import { RequestPasswordResetService } from "../services/request-password-reset.service.js";
 import { ResetPasswordService } from "../services/reset-password.service.js";
+import { ActivateProfessionalService } from "../services/activate-professional.service.js";
 import { AppError, handleError } from "../utils/app-error.js";
+import { startUserSession } from "../utils/account-session.js";
+import { serializeUser, USER_SELECT } from "../utils/serializers.js";
 import { prisma } from "../database/prisma.js";
 
-const USER_SELECT = {
-    id: true,
-    name: true,
-    email: true,
-    phone: true,
-    professionalId: true,
-    gymId: true,
-    gymEnrolledAt: true,
-    gym: { select: { id: true, name: true } },
-    createdAt: true,
-    updatedAt: true,
-} as const;
-
+// Aluno e profissional (docs/contrato-api.md, secao 4).
 export class UsersController {
     async create(req: Request, res: Response): Promise<Response> {
         try {
             const createUser = new CreateUserService();
 
-            const result = await createUser.execute(req.body as any);
+            const { user, message, startSession } = await createUser.execute(req.body ?? {});
 
-            return res.status(201).json(result);
+            // Com EMAIL_VERIFICATION=off a conta ja nasce confirmada e entra direto.
+            if (startSession) {
+                const session = await startUserSession(req, res, user);
+                return res.status(201).json({ user, message, ...session });
+            }
+
+            return res.status(201).json({ user, message });
         } catch (error) {
             return handleError(error, res);
         }
     }
 
     async me(req: Request, res: Response): Promise<Response> {
-        const user = await prisma.user.findUniqueOrThrow({ where: { id: req.userId }, select: USER_SELECT });
+        try {
+            const user = await prisma.user.findUnique({ where: { id: req.userId }, select: USER_SELECT });
 
-        return res.status(200).json(user);
+            if (!user) {
+                throw new AppError("Usuário não encontrado.", 404);
+            }
+
+            return res.status(200).json(serializeUser(user));
+        } catch (error) {
+            return handleError(error, res);
+        }
     }
 
-    // RF04: o aluno pode atualizar as informacoes pessoais exibidas no perfil.
+    // RF04/RF05: o aluno atualiza as informacoes pessoais; o profissional
+    // tambem edita especialidade e bio, exibidas na Pagina de Perfis.
+    // gymId e role sao ignorados: o profissional nao troca de academia.
     async updateMe(req: Request, res: Response): Promise<Response> {
         try {
-            const { name, phone } = req.body as { name?: string; phone?: string | null };
+            const { name, phone, specialty, bio } = (req.body ?? {}) as {
+                name?: string;
+                phone?: string | null;
+                specialty?: string | null;
+                bio?: string | null;
+            };
 
-            if (name !== undefined && !name.trim()) {
+            if (name !== undefined && !name?.trim()) {
                 throw new AppError("Informe o seu nome.");
             }
+
+            const isProfessional = req.userRole === "PROFESSIONAL";
 
             const user = await prisma.user.update({
                 where: { id: req.userId },
                 data: {
                     ...(name !== undefined ? { name: name.trim() } : {}),
                     ...(phone !== undefined ? { phone: phone?.trim() || null } : {}),
+                    ...(isProfessional && specialty !== undefined ? { specialty: specialty?.trim() || null } : {}),
+                    ...(isProfessional && bio !== undefined ? { bio: bio?.trim() || null } : {}),
                 },
                 select: USER_SELECT,
             });
 
-            return res.status(200).json(user);
+            return res.status(200).json(serializeUser(user));
         } catch (error) {
             return handleError(error, res);
         }
     }
 
+    // Relacao "Orienta" do DER: o aluno escolhe (ou troca) o profissional.
+    // Enviar professionalId null desfaz o vinculo.
     async linkProfessional(req: Request, res: Response): Promise<Response> {
         try {
-            const { professionalId } = req.body as { professionalId: string | null };
+            const { professionalId } = (req.body ?? {}) as { professionalId?: string | null };
+
+            if (professionalId === undefined) {
+                throw new AppError("Informe o profissional.");
+            }
 
             if (professionalId) {
-                const professional = await prisma.professional.findUnique({ where: { id: professionalId } });
+                // So profissionais que ja ativaram a conta aparecem para o aluno.
+                const professional = await prisma.user.findFirst({
+                    where: { id: professionalId, role: "PROFESSIONAL", password: { not: null } },
+                    select: { id: true },
+                });
 
                 if (!professional) {
                     throw new AppError("Profissional não encontrado.", 404);
@@ -77,15 +103,11 @@ export class UsersController {
 
             const user = await prisma.user.update({
                 where: { id: req.userId },
-                data: { professionalId: professionalId ?? null },
+                data: { professionalId: professionalId || null },
+                select: USER_SELECT,
             });
 
-            return res.status(200).json({
-                id: user.id,
-                name: user.name,
-                email: user.email,
-                professionalId: user.professionalId,
-            });
+            return res.status(200).json(serializeUser(user));
         } catch (error) {
             return handleError(error, res);
         }
@@ -95,7 +117,7 @@ export class UsersController {
     // Enviar gymId null cancela a matricula.
     async linkGym(req: Request, res: Response): Promise<Response> {
         try {
-            const { gymId } = req.body as { gymId?: string | null };
+            const { gymId } = (req.body ?? {}) as { gymId?: string | null };
 
             if (gymId === undefined) {
                 throw new AppError("Informe a academia.");
@@ -119,12 +141,12 @@ export class UsersController {
                 data: {
                     gymId: gymId || null,
                     // A data so muda quando o aluno entra numa academia diferente.
-                    ...(gymId !== current.gymId ? { gymEnrolledAt: gymId ? new Date() : null } : {}),
+                    ...((gymId || null) !== current.gymId ? { gymEnrolledAt: gymId ? new Date() : null } : {}),
                 },
                 select: USER_SELECT,
             });
 
-            return res.status(200).json(user);
+            return res.status(200).json(serializeUser(user));
         } catch (error) {
             return handleError(error, res);
         }
@@ -134,9 +156,10 @@ export class UsersController {
         try {
             const verifyEmail = new VerifyEmailService();
 
-            const result = await verifyEmail.execute(req.body);
+            const { user } = await verifyEmail.execute(req.body ?? {});
+            const session = await startUserSession(req, res, user);
 
-            return res.status(200).json(result);
+            return res.status(200).json({ user, ...session });
         } catch (error) {
             return handleError(error, res);
         }
@@ -146,7 +169,7 @@ export class UsersController {
         try {
             const resendVerificationCode = new ResendVerificationCodeService();
 
-            const result = await resendVerificationCode.execute(req.body);
+            const result = await resendVerificationCode.execute(req.body ?? {});
 
             return res.status(200).json(result);
         } catch (error) {
@@ -158,7 +181,7 @@ export class UsersController {
         try {
             const requestPasswordReset = new RequestPasswordResetService();
 
-            const result = await requestPasswordReset.execute(req.body);
+            const result = await requestPasswordReset.execute(req.body ?? {});
 
             return res.status(200).json(result);
         } catch (error) {
@@ -166,13 +189,29 @@ export class UsersController {
         }
     }
 
+    // Redefinir a senha derruba as outras sessoes da conta (secao 2.5).
     async resetPassword(req: Request, res: Response): Promise<Response> {
         try {
             const resetPassword = new ResetPasswordService();
 
-            const result = await resetPassword.execute(req.body);
+            const { user } = await resetPassword.execute(req.body ?? {});
+            const session = await startUserSession(req, res, user, { revokeOthers: true });
 
-            return res.status(200).json(result);
+            return res.status(200).json({ user, ...session });
+        } catch (error) {
+            return handleError(error, res);
+        }
+    }
+
+    // Primeiro acesso do profissional: cria a senha com o codigo de convite.
+    async activate(req: Request, res: Response): Promise<Response> {
+        try {
+            const activateProfessional = new ActivateProfessionalService();
+
+            const { user } = await activateProfessional.execute(req.body ?? {});
+            const session = await startUserSession(req, res, user, { revokeOthers: true });
+
+            return res.status(200).json({ user, ...session });
         } catch (error) {
             return handleError(error, res);
         }

@@ -8,11 +8,9 @@ export const professionalsRoutes = Router();
 
 const professionalsController = new ProfessionalsController();
 
-professionalsRoutes.post("/", professionalsController.create);
-professionalsRoutes.post("/sessions", professionalsController.login);
-professionalsRoutes.get("/", professionalsController.listAll);
-professionalsRoutes.get("/me", ensureAuthenticated, restrictTo("PROFESSIONAL"), professionalsController.me);
-professionalsRoutes.patch("/me", ensureAuthenticated, restrictTo("PROFESSIONAL"), professionalsController.updateMe);
+// O profissional e cadastrado pela academia (/gyms/me/professionals), entra
+// pelo login unico (POST /sessions) e edita o perfil em /users/me.
+professionalsRoutes.get("/", ensureAuthenticated, professionalsController.listAll);
 professionalsRoutes.get(
     "/students",
     ensureAuthenticated,

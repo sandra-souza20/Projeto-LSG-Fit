@@ -1,38 +1,44 @@
 import type { Request, Response } from "express";
 import { CreateGymService } from "../services/create-gym.service.js";
 import { AuthenticateGymService } from "../services/authenticate-gym.service.js";
+import { RequestGymPasswordResetService } from "../services/request-gym-password-reset.service.js";
+import { ResetGymPasswordService } from "../services/reset-gym-password.service.js";
+import {
+    CreateGymProfessionalService,
+    GYM_PROFESSIONAL_SELECT,
+    serializeGymProfessional,
+} from "../services/create-gym-professional.service.js";
+import { SendProfessionalInviteService } from "../services/send-professional-invite.service.js";
 import { AppError, handleError } from "../utils/app-error.js";
+import { startGymSession } from "../utils/account-session.js";
+import { serializeGym } from "../utils/serializers.js";
+import { revokeAllSessions } from "../utils/session.js";
 import { prisma } from "../database/prisma.js";
 import { listSessionsInRange, parseRange } from "./workout-sessions.controller.js";
 
-function serializeGym(gym: {
-    id: string;
-    name: string;
-    email: string;
-    phone: string | null;
-    address: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-}) {
-    return {
-        id: gym.id,
-        name: gym.name,
-        email: gym.email,
-        phone: gym.phone,
-        address: gym.address,
-        createdAt: gym.createdAt,
-        updatedAt: gym.updatedAt,
-    };
+async function findGymProfessional(gymId: string, professionalId: string) {
+    const professional = await prisma.user.findFirst({
+        where: { id: professionalId, gymId, role: "PROFESSIONAL" },
+        select: { id: true },
+    });
+
+    if (!professional) {
+        throw new AppError("Profissional não encontrado nesta academia.", 404);
+    }
+
+    return professional;
 }
 
 export class GymsController {
+    // Cadastro livre: ja entra, sem "lembrar deste dispositivo".
     async create(req: Request, res: Response): Promise<Response> {
         try {
             const createGym = new CreateGymService();
 
-            const result = await createGym.execute(req.body);
+            const { gym } = await createGym.execute(req.body ?? {});
+            const session = await startGymSession(req, res, gym, { remember: false });
 
-            return res.status(201).json(result);
+            return res.status(201).json({ gym, ...session });
         } catch (error) {
             return handleError(error, res);
         }
@@ -42,7 +48,20 @@ export class GymsController {
         try {
             const authenticateGym = new AuthenticateGymService();
 
-            const result = await authenticateGym.execute(req.body);
+            const { gym } = await authenticateGym.execute(req.body ?? {});
+            const session = await startGymSession(req, res, gym, { remember: req.body?.rememberDevice === true });
+
+            return res.status(200).json({ gym, ...session });
+        } catch (error) {
+            return handleError(error, res);
+        }
+    }
+
+    async forgotPassword(req: Request, res: Response): Promise<Response> {
+        try {
+            const requestGymPasswordReset = new RequestGymPasswordResetService();
+
+            const result = await requestGymPasswordReset.execute(req.body ?? {});
 
             return res.status(200).json(result);
         } catch (error) {
@@ -50,15 +69,37 @@ export class GymsController {
         }
     }
 
-    async me(req: Request, res: Response): Promise<Response> {
-        const gym = await prisma.gym.findUniqueOrThrow({ where: { id: req.userId } });
+    // Redefinir a senha derruba as outras sessoes da academia (secao 2.5).
+    async resetPassword(req: Request, res: Response): Promise<Response> {
+        try {
+            const resetGymPassword = new ResetGymPasswordService();
 
-        return res.status(200).json(serializeGym(gym));
+            const { gym } = await resetGymPassword.execute(req.body ?? {});
+            const session = await startGymSession(req, res, gym, { remember: false, revokeOthers: true });
+
+            return res.status(200).json({ gym, ...session });
+        } catch (error) {
+            return handleError(error, res);
+        }
+    }
+
+    async me(req: Request, res: Response): Promise<Response> {
+        try {
+            const gym = await prisma.gym.findUnique({ where: { id: req.userId } });
+
+            if (!gym) {
+                throw new AppError("Academia não encontrada.", 404);
+            }
+
+            return res.status(200).json(serializeGym(gym));
+        } catch (error) {
+            return handleError(error, res);
+        }
     }
 
     async updateMe(req: Request, res: Response): Promise<Response> {
         try {
-            const { name, phone, address } = req.body as {
+            const { name, phone, address } = (req.body ?? {}) as {
                 name?: string;
                 phone?: string | null;
                 address?: string | null;
@@ -92,42 +133,40 @@ export class GymsController {
         return res.status(200).json(gyms);
     }
 
-    // Profissionais vinculados a esta academia (relacao "Contrata" do DER),
-    // incluindo os pedidos pendentes de aprovacao.
+    // Profissionais contratados por esta academia (relacao "Contrata" do DER),
+    // incluindo os que ainda nao ativaram a conta.
     async professionals(req: Request, res: Response): Promise<Response> {
-        const professionals = await prisma.professional.findMany({
-            where: { gymId: req.userId },
-            select: {
-                id: true,
-                name: true,
-                email: true,
-                phone: true,
-                specialty: true,
-                gymStatus: true,
-                _count: { select: { students: true } },
-            },
-            orderBy: [{ gymStatus: "asc" }, { name: "asc" }],
-        });
-
-        return res.status(200).json(
-            professionals.map(({ _count, ...professional }) => ({
-                ...professional,
-                studentsCount: _count.students,
-            })),
-        );
-    }
-
-    // A academia aprova o pedido de vinculo de um profissional.
-    async approveProfessional(req: Request, res: Response): Promise<Response> {
         try {
-            const { count } = await prisma.professional.updateMany({
-                where: { id: req.params.professionalId as string, gymId: req.userId, gymStatus: "PENDING" },
-                data: { gymStatus: "ACTIVE" },
+            const professionals = await prisma.user.findMany({
+                where: { gymId: req.userId, role: "PROFESSIONAL" },
+                select: GYM_PROFESSIONAL_SELECT,
+                orderBy: { name: "asc" },
             });
 
-            if (count === 0) {
-                throw new AppError("Pedido de vínculo não encontrado.", 404);
-            }
+            return res.status(200).json(professionals.map(serializeGymProfessional));
+        } catch (error) {
+            return handleError(error, res);
+        }
+    }
+
+    // So a academia cadastra profissionais; o profissional recebe um convite.
+    async createProfessional(req: Request, res: Response): Promise<Response> {
+        try {
+            const createGymProfessional = new CreateGymProfessionalService();
+
+            const professional = await createGymProfessional.execute({ ...(req.body ?? {}), gymId: req.userId });
+
+            return res.status(201).json(professional);
+        } catch (error) {
+            return handleError(error, res);
+        }
+    }
+
+    async resendProfessionalInvite(req: Request, res: Response): Promise<Response> {
+        try {
+            const professional = await findGymProfessional(req.userId, req.params.professionalId as string);
+
+            await new SendProfessionalInviteService().execute(professional.id);
 
             return res.status(204).send();
         } catch (error) {
@@ -135,18 +174,14 @@ export class GymsController {
         }
     }
 
-    // Recusa um pedido pendente ou remove um profissional ja aprovado. Os alunos
-    // dele nao mudam: o personal pode continuar atendendo como autonomo.
+    // Apaga a conta do profissional: os alunos dele ficam sem profissional
+    // (onDelete SetNull) e as sessoes abertas dele sao derrubadas.
     async removeProfessional(req: Request, res: Response): Promise<Response> {
         try {
-            const { count } = await prisma.professional.updateMany({
-                where: { id: req.params.professionalId as string, gymId: req.userId },
-                data: { gymId: null, gymStatus: null },
-            });
+            const professional = await findGymProfessional(req.userId, req.params.professionalId as string);
 
-            if (count === 0) {
-                throw new AppError("Profissional não encontrado nesta academia.", 404);
-            }
+            await prisma.user.delete({ where: { id: professional.id } });
+            await revokeAllSessions("user", professional.id);
 
             return res.status(204).send();
         } catch (error) {
@@ -164,7 +199,7 @@ export class GymsController {
             const range = req.query.from || req.query.to ? parseRange(req.query) : null;
 
             const students = await prisma.user.findMany({
-                where: { gymId: req.userId },
+                where: { gymId: req.userId, role: "STUDENT" },
                 select: {
                     id: true,
                     name: true,
@@ -204,7 +239,7 @@ export class GymsController {
     async studentWorkoutSessions(req: Request, res: Response): Promise<Response> {
         try {
             const student = await prisma.user.findFirst({
-                where: { id: req.params.studentId as string, gymId: req.userId },
+                where: { id: req.params.studentId as string, gymId: req.userId, role: "STUDENT" },
                 select: { id: true },
             });
 
@@ -225,7 +260,7 @@ export class GymsController {
     async removeStudent(req: Request, res: Response): Promise<Response> {
         try {
             const { count } = await prisma.user.updateMany({
-                where: { id: req.params.studentId as string, gymId: req.userId },
+                where: { id: req.params.studentId as string, gymId: req.userId, role: "STUDENT" },
                 data: { gymId: null, gymEnrolledAt: null },
             });
 
