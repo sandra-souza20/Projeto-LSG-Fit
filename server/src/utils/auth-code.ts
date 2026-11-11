@@ -1,4 +1,4 @@
-import { createHash, randomInt, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { prisma } from "../database/prisma.js";
 import type { AuthCodePurpose } from "../../prisma/client/enums.js";
 import { AppError } from "./app-error.js";
@@ -7,12 +7,13 @@ import { AppError } from "./app-error.js";
 // No banco fica so o sha256; cada dono tem no maximo um codigo ativo por
 // finalidade, com no maximo 5 tentativas e uso unico.
 
-export type AuthCodeOwner = { userId: string } | { gymId: string };
+export type AuthCodeOwner = { userId: string } | { gymMemberId: string };
 
 const TTL_MINUTES: Record<AuthCodePurpose, number> = {
     EMAIL_VERIFICATION: 15,
     PASSWORD_RESET: 15,
     PROFESSIONAL_INVITE: 72 * 60,
+    GYM_MEMBER_INVITE: 72 * 60,
 };
 
 const MAX_ATTEMPTS = 5;
@@ -24,7 +25,7 @@ function hashCode(code: string): string {
 }
 
 function ownerWhere(owner: AuthCodeOwner) {
-    return "userId" in owner ? { userId: owner.userId } : { gymId: owner.gymId };
+    return "userId" in owner ? { userId: owner.userId } : { gymMemberId: owner.gymMemberId };
 }
 
 /** Gera um codigo novo para o dono e a finalidade, apagando o anterior. Devolve o codigo em texto. */
@@ -89,4 +90,46 @@ export async function consumeAuthCode(owner: AuthCodeOwner, purpose: AuthCodePur
     if (count === 0) {
         throw new AppError(INVALID_CODE_MESSAGE);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Tokens de link (convite do profissional e do membro da academia)
+//
+// No link vai um token aleatorio de 256 bits, nao um codigo de 6 digitos: nao
+// da para adivinhar, entao nao ha limite de tentativas. No banco fica so o
+// sha256, na mesma tabela auth_codes.
+
+export const INVALID_LINK_MESSAGE = "Link inválido ou expirado. Peça um novo convite à academia.";
+
+/** Gera um token novo para o dono e a finalidade, apagando o anterior. Devolve o token em texto. */
+export async function issueAuthToken(owner: AuthCodeOwner, purpose: AuthCodePurpose): Promise<string> {
+    const token = randomBytes(32).toString("base64url");
+    const where = ownerWhere(owner);
+
+    await prisma.$transaction([
+        prisma.authCode.deleteMany({ where: { ...where, purpose } }),
+        prisma.authCode.create({
+            data: {
+                ...where,
+                purpose,
+                codeHash: hashCode(token),
+                expiresAt: new Date(Date.now() + TTL_MINUTES[purpose] * 60 * 1000),
+            },
+        }),
+    ]);
+
+    return token;
+}
+
+/** Acha o registro do token, se ainda valer. `null` se nao existir ou tiver expirado. */
+export async function findAuthToken(purpose: AuthCodePurpose, token: unknown) {
+    if (typeof token !== "string" || !token.trim()) return null;
+
+    const authCode = await prisma.authCode.findFirst({
+        where: { purpose, codeHash: hashCode(token.trim()) },
+    });
+
+    if (!authCode || authCode.expiresAt < new Date()) return null;
+
+    return authCode;
 }

@@ -1,3 +1,4 @@
+import { Children, type ReactNode } from 'react';
 import { Platform, StyleSheet, Text, type TextProps, type TextStyle } from 'react-native';
 
 import { fontFamilyForWeight, Fonts, ThemeColor } from '@/constants/theme';
@@ -8,7 +9,20 @@ export type ThemedTextProps = TextProps & {
   themeColor?: ThemeColor;
 };
 
-export function ThemedText({ style, type = 'default', themeColor, ...rest }: ThemedTextProps) {
+// Android mede a largura do texto antes de aplicar textTransform e corta a
+// ultima letra quando o texto fica mais largo em maiusculas ("Terç", "Academi").
+// Por isso o texto e convertido aqui e o textTransform e desligado.
+function toUppercase(children: ReactNode): ReactNode {
+  return Children.map(children, (child) =>
+    typeof child === 'string' ? child.toLocaleUpperCase('pt-BR') : child,
+  );
+}
+
+const NO_TRANSFORM = { textTransform: 'none' } as const;
+
+const isAndroid = Platform.OS === 'android';
+
+export function ThemedText({ style, type = 'default', themeColor, children, ...rest }: ThemedTextProps) {
   const theme = useTheme();
   const composed = [
     { color: theme[themeColor ?? 'text'] },
@@ -25,12 +39,27 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
 
   // Montserrat (identidade visual): a familia certa para o peso final do texto.
   // Quem define fontFamily (ex.: texto em fonte mono) fica como esta.
-  const flat: TextStyle = StyleSheet.flatten(composed);
+  const flat: TextStyle = StyleSheet.flatten(composed) ?? {};
   const brandFont = flat.fontFamily
     ? null
     : { fontFamily: fontFamilyForWeight(flat.fontWeight), fontWeight: 'normal' as const };
 
-  return <Text style={[composed, brandFont]} {...rest} />;
+  const isUppercase = flat.textTransform === 'uppercase';
+  // Android nao soma o letterSpacing da ultima letra na largura medida.
+  const letterSpacingFix =
+    isAndroid && flat.letterSpacing ? { paddingRight: Math.ceil(Math.abs(flat.letterSpacing)) } : null;
+
+  return (
+    <Text
+      // Android: com a quebra "highQuality" (padrao) e a Montserrat, a largura
+      // medida sai menor que a desenhada e a ultima letra vai para uma segunda
+      // linha escondida ("Terç", "Segund", "Academi"). A "simple" mede certo.
+      textBreakStrategy="simple"
+      style={[composed, brandFont, isUppercase && NO_TRANSFORM, letterSpacingFix]}
+      {...rest}>
+      {isUppercase ? toUppercase(children) : children}
+    </Text>
+  );
 }
 
 const styles = StyleSheet.create({

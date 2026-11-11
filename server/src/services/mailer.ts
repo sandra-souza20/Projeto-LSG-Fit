@@ -96,17 +96,74 @@ export function sendGymPasswordResetCodeEmail(to: string, code: string) {
     });
 }
 
-// Convite do profissional cadastrado pela academia: ele usa o codigo no app
-// (primeiro acesso) para criar a senha e ativar a conta.
-export function sendProfessionalInviteEmail(to: string, gymName: string, code: string) {
-    return sendCodeEmail({
+type InviteEmail = {
+    to: string;
+    subject: string;
+    heading: string;
+    // Texto acima do botao (ja em HTML seguro).
+    intro: string;
+    buttonLabel: string;
+    link: string;
+};
+
+// E-mail com um botao para o link do convite (72 h).
+async function sendInviteLinkEmail({ to, subject, heading, intro, buttonLabel, link }: InviteEmail) {
+    if (!resend) {
+        console.log(`[mailer] ${subject} -> ${to}: link ${link}`);
+        return;
+    }
+
+    const safeLink = escapeHtml(link);
+    const html = `
+        <div style="font-family: sans-serif; text-align: center;">
+            <h2>${heading}</h2>
+            <p>${intro}</p>
+            <p>O link expira em 72 horas.</p>
+            <p style="margin: 32px 0;">
+                <a href="${safeLink}" style="background: #111; color: #fff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold;">${buttonLabel}</a>
+            </p>
+            <p style="font-size: 12px; color: #666;">Se o botão não funcionar, copie e cole este endereço no navegador:<br>${safeLink}</p>
+        </div>
+    `;
+
+    try {
+        await deliver(to, subject, html);
+    } catch (error) {
+        console.error(`[mailer] Failed to send e-mail to ${to}:`, error);
+
+        // Com EMAIL_VERIFICATION=off o remetente de teste do Resend so entrega
+        // para o dono da conta: o link vai para o log para nao travar o fluxo.
+        if (!emailVerificationEnabled) {
+            console.log(`[mailer] ${subject} -> ${to}: link ${link}`);
+            return;
+        }
+
+        throw new AppError("Não foi possível enviar o convite para esse e-mail. Tente novamente mais tarde.", 502);
+    }
+}
+
+// Convite do profissional cadastrado pela academia: o link abre a pagina
+// "ativar conta" do app web, onde ele cria a senha e depois entra no app.
+export function sendProfessionalInviteEmail(to: string, gymName: string, link: string) {
+    return sendInviteLinkEmail({
         to,
         subject: `${gymName} convidou você para a LSG FIT`,
         heading: "Ative sua conta de profissional",
-        intro:
-            `A academia <strong>${escapeHtml(gymName)}</strong> cadastrou você como profissional na LSG FIT. ` +
-            "No app, escolha \"Primeiro acesso\" e use o código abaixo para criar a sua senha. Ele expira em 72 horas.",
-        code,
-        tolerateFailure: !emailVerificationEnabled,
+        intro: `A academia <strong>${escapeHtml(gymName)}</strong> cadastrou você como profissional na LSG FIT. Clique no botão abaixo para criar a sua senha.`,
+        buttonLabel: "Criar minha senha",
+        link,
+    });
+}
+
+// Convite para administrar a academia no app web: o link abre a pagina
+// "aceitar convite", onde a pessoa cria a senha e ja entra no painel.
+export function sendGymMemberInviteEmail(to: string, gymName: string, invitedBy: string, link: string) {
+    return sendInviteLinkEmail({
+        to,
+        subject: `Convite para administrar ${gymName} na LSG FIT`,
+        heading: "Você foi convidado para o painel da academia",
+        intro: `<strong>${escapeHtml(invitedBy)}</strong> convidou você para administrar a academia <strong>${escapeHtml(gymName)}</strong> na LSG FIT. Clique no botão abaixo para criar a sua senha.`,
+        buttonLabel: "Aceitar convite",
+        link,
     });
 }

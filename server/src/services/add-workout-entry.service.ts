@@ -1,9 +1,13 @@
 import { prisma } from "../database/prisma.js";
 import { AppError } from "../utils/app-error.js";
+import { usesLoad } from "../utils/equipment.js";
 import type { Weekday } from "../../prisma/client/enums.js";
+import { serializeWorkoutEntry, studentGymEquipment, WORKOUT_ENTRY_INCLUDE } from "./get-workout-plan.service.js";
 
 type IRequestDto = {
     userId: string;
+    // Quem esta adicionando: o proprio aluno ou o profissional dele.
+    addedById: string;
     exerciseId: string;
     dayOfWeek: Weekday;
     sets: number;
@@ -55,18 +59,22 @@ export class AddWorkoutEntryService {
             orderBy: { order: "desc" },
         });
 
-        return prisma.workoutEntry.create({
+        const created = await prisma.workoutEntry.create({
             data: {
                 userId: dto.userId,
                 exerciseId: dto.exerciseId,
                 dayOfWeek: dto.dayOfWeek,
                 sets: dto.sets,
                 reps: dto.reps,
-                weight: dto.weight ?? null,
+                // Peso corporal nao tem carga.
+                weight: usesLoad(exercise.equipment) ? (dto.weight ?? null) : null,
                 restSeconds: dto.restSeconds ?? null,
                 order: (lastEntry?.order ?? -1) + 1,
+                addedById: dto.addedById,
             },
-            include: { exercise: true },
+            include: WORKOUT_ENTRY_INCLUDE,
         });
+
+        return serializeWorkoutEntry(created, await studentGymEquipment(dto.userId));
     }
 }

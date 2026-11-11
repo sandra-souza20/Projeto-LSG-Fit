@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ConfirmLogoutModal } from '@/components/confirm-logout-modal';
 import { InfoRow } from '@/components/info-row';
+import { GymInfo } from '@/components/gym-info';
 import { PrimaryButton } from '@/components/primary-button';
 import { Screen } from '@/components/screen';
 import { TextField } from '@/components/text-field';
@@ -60,7 +61,7 @@ export default function ProfessionalProfileScreen() {
 
   return (
     <>
-      <Screen title="Meu perfil" backLabel="Meus alunos">
+      <Screen title="Meu perfil" withTabBar>
         <ThemedText type="small" themeColor="textSecondary">
           Essas informações aparecem para os alunos na página de profissionais. Com o telefone preenchido, eles
           podem te chamar direto no WhatsApp.
@@ -109,7 +110,7 @@ export default function ProfessionalProfileScreen() {
 
         {/* A academia cadastra o profissional no app web; aqui o vinculo e so informativo. */}
         <ThemedView type="card" style={[styles.card, { borderColor: theme.border }]}>
-          <InfoRow label="Academia" value={user?.gym?.name} placeholder="Nenhuma" />
+          {user?.gym ? <GymInfo gym={user.gym} /> : <InfoRow label="Academia" value={null} placeholder="Nenhuma" />}
           <ThemedText type="small" themeColor="textSecondary">
             A academia que cadastrou você é quem gerencia esse vínculo.
           </ThemedText>

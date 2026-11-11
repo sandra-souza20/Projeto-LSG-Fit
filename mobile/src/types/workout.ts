@@ -35,6 +35,8 @@ export type WorkoutEntry = {
   restSeconds: number | null;
   order: number;
   exercise: Exercise;
+  // Quem colocou o exercicio na ficha (o proprio aluno ou o profissional).
+  addedBy: { id: string; name: string; role: 'STUDENT' | 'PROFESSIONAL' } | null;
 };
 
 export function formatRest(seconds: number) {

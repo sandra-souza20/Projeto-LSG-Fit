@@ -2,7 +2,7 @@ import { prisma } from "../database/prisma.js";
 import { AppError } from "./app-error.js";
 
 // Um e-mail pertence a uma unica conta, seja em "users" (aluno ou
-// profissional) ou em "gyms" (docs/contrato-api.md, secao 1).
+// profissional) ou em "gym_members" (docs/contrato-api.md, secao 1).
 
 export const EMAIL_IN_USE_MESSAGE = "Este e-mail já pertence a uma conta.";
 
@@ -21,12 +21,12 @@ export function isValidEmail(email: string): boolean {
  * confirmou o e-mail) seja sobrescrito.
  */
 export async function ensureEmailAvailable(email: string, options: { ignoreUserId?: string } = {}): Promise<void> {
-    const [user, gym] = await Promise.all([
+    const [user, member] = await Promise.all([
         prisma.user.findUnique({ where: { email }, select: { id: true } }),
-        prisma.gym.findUnique({ where: { email }, select: { id: true } }),
+        prisma.gymMember.findUnique({ where: { email }, select: { id: true } }),
     ]);
 
-    if (gym || (user && user.id !== options.ignoreUserId)) {
+    if (member || (user && user.id !== options.ignoreUserId)) {
         throw new AppError(EMAIL_IN_USE_MESSAGE, 409, "EMAIL_IN_USE");
     }
 }

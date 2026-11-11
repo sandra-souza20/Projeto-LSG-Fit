@@ -4,8 +4,10 @@ import express from "express";
 import { fileURLToPath } from "node:url";
 import { WEB_ORIGIN } from "./middlewares/check-web-origin.js";
 import { globalRateLimit } from "./middlewares/rate-limit.js";
+import { requestLogger } from "./middlewares/request-logger.js";
 import { routes } from "./routes/routes.js";
 import { connectRedis } from "./utils/redis.js";
+import { startCheckInExpirySweeper } from "./services/check-ins.service.js";
 
 const app = express();
 const port = Number(process.env["PORT"]) || 3333;
@@ -25,11 +27,17 @@ if (!WEB_ORIGIN) {
     console.warn("WEB_ORIGIN nao definida: o app web nao passara no CORS nem na checagem de Origin.");
 }
 
-// So o app web da academia envia Origin (com cookie). O mobile nao envia
-// Origin, entao o CORS nao o afeta.
+// MOBILE_ORIGIN: app mobile rodando no navegador (Expo web). Vale so para o
+// CORS; as rotas da academia e o CSRF continuam aceitando apenas o WEB_ORIGIN.
+// No celular o app nao envia Origin, entao o CORS nao o afeta.
+const MOBILE_ORIGIN = process.env["MOBILE_ORIGIN"]?.trim().replace(/\/+$/, "") || null;
+const corsOrigins = [WEB_ORIGIN, MOBILE_ORIGIN].filter((origin): origin is string => origin !== null);
+
+app.use(requestLogger);
+
 app.use(
     cors({
-        origin: WEB_ORIGIN ?? false,
+        origin: corsOrigins.length > 0 ? corsOrigins : false,
         credentials: true,
         exposedHeaders: ["RateLimit", "RateLimit-Policy", "Retry-After"],
     }),
@@ -49,5 +57,6 @@ app.use(express.json());
 app.use(routes);
 
 void connectRedis();
+startCheckInExpirySweeper();
 
 app.listen(port, () => console.log(`Server is running on port ${port}`))

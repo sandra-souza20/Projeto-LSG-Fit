@@ -6,6 +6,9 @@ export const workoutPlanRoutes = Router();
 
 const workoutPlanController = new WorkoutPlanController();
 
+// Ficha do proprio aluno (o profissional usa /professionals/students/:id/workout-plan).
 workoutPlanRoutes.use(ensureAuthenticated, restrictTo("STUDENT"));
 workoutPlanRoutes.get("/", workoutPlanController.list);
-workoutPlanRoutes.patch("/:id", workoutPlanController.registerWeight);
+workoutPlanRoutes.post("/", workoutPlanController.create);
+workoutPlanRoutes.patch("/:id", workoutPlanController.update);
+workoutPlanRoutes.delete("/:id", workoutPlanController.remove);

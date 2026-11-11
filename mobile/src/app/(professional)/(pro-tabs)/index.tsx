@@ -7,7 +7,7 @@ import { AppHeader } from '@/components/app-header';
 import { ConfirmLogoutModal } from '@/components/confirm-logout-modal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { FontFamily, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { BottomTabInset, FontFamily, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
 import { useProfessionalStudents } from '@/hooks/use-professional-students';
 import { useTheme } from '@/hooks/use-theme';
@@ -46,21 +46,6 @@ export default function ProfessionalStudentsScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <AppHeader name={user?.name ?? ''} onLogout={() => setIsLogoutModalVisible(true)} />
-
-        <View style={styles.quickActions}>
-          <Pressable style={styles.quickAction} onPress={() => router.push('/exercise-library')}>
-            <ThemedView type="accent" style={styles.quickActionInner}>
-              <ThemedText type="smallBold" themeColor="accentText">
-                Biblioteca de exercícios
-              </ThemedText>
-            </ThemedView>
-          </Pressable>
-          <Pressable style={styles.quickAction} onPress={() => router.push('/professional-profile')}>
-            <ThemedView type="card" style={[styles.quickActionInner, { borderColor: theme.border }, styles.bordered]}>
-              <ThemedText type="smallBold">Meu perfil</ThemedText>
-            </ThemedView>
-          </Pressable>
-        </View>
 
         <View style={styles.titleRow}>
           <ThemedText type="subtitle">Meus alunos</ThemedText>
@@ -157,22 +142,6 @@ const styles = StyleSheet.create({
     paddingTop: Platform.select({ web: Spacing.six, default: Spacing.three }),
     gap: Spacing.three,
   },
-  quickActions: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-  },
-  quickAction: {
-    flex: 1,
-  },
-  quickActionInner: {
-    borderRadius: Radius.medium,
-    paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.two,
-    alignItems: 'center',
-  },
-  bordered: {
-    borderWidth: 1,
-  },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
@@ -197,7 +166,7 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: Spacing.two,
-    paddingBottom: Spacing.four,
+    paddingBottom: BottomTabInset + Spacing.four,
   },
   studentCard: {
     borderWidth: 1,

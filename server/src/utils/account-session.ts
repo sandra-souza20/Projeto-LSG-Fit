@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { revokeAllSessions, startSession } from "./session.js";
-import type { SerializedGym, SerializedUser } from "./serializers.js";
+import type { SerializedUser } from "./serializers.js";
 
 // Atalhos sobre utils/session.ts para montar as respostas que criam sessao
 // (docs/contrato-api.md, secoes 3, 4 e 5).
@@ -22,21 +22,22 @@ export async function startUserSession(req: Request, res: Response, user: Serial
     return { token: session.token!, sessionId: session.sessionId };
 }
 
-/** Academia (web, cookie): define o cookie e devolve `{ csrfToken }`. */
+/** Membro da academia (web, cookie): define o cookie e devolve `{ csrfToken }`. */
 export async function startGymSession(
     req: Request,
     res: Response,
-    gym: SerializedGym,
+    member: { id: string; gymId: string },
     options: SessionOptions & { remember?: boolean } = {},
 ) {
     if (options.revokeOthers) {
-        await revokeAllSessions("gym", gym.id);
+        await revokeAllSessions("gym", member.id);
     }
 
     const session = await startSession(req, res, {
         accountType: "gym",
-        accountId: gym.id,
+        accountId: member.id,
         role: "GYM",
+        gymId: member.gymId,
         remember: Boolean(options.remember),
     });
 

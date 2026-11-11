@@ -166,7 +166,7 @@ async function onlineChecks(): Promise<void> {
     check((await call("GET", "/test/me")).body?.code === "SESSION_EXPIRED", "sem token → 401 SESSION_EXPIRED");
 
     console.log("\nSessão cookie (web)");
-    const webLogin = await createSession({ accountType: "gym", accountId: gym, role: "GYM" }, web);
+    const webLogin = await createSession({ accountType: "gym", accountId: gym, role: "GYM", gymId: `${run}-gym` }, web);
     const setCookie = webLogin.headers.get("set-cookie") ?? "";
     check(webLogin.body.csrfToken && !webLogin.body.token && webLogin.cookie, "devolve csrfToken e define o cookie");
     check(/HttpOnly/i.test(setCookie) && /SameSite=Lax/i.test(setCookie) && /Path=\//.test(setCookie), `cookie HttpOnly, SameSite=Lax, Path=/`);
@@ -187,7 +187,7 @@ async function onlineChecks(): Promise<void> {
     check(noOrigin.status === 403, "POST sem Origin → 403");
     check((await call("POST", "/test/me", { cookie, headers: webWrite(csrf) })).status === 200, "POST com CSRF e Origin certos → 200");
 
-    const remembered = await createSession({ accountType: "gym", accountId: gym, role: "GYM", remember: true }, web);
+    const remembered = await createSession({ accountType: "gym", accountId: gym, role: "GYM", gymId: `${run}-gym`, remember: true }, web);
     const rememberedCookie = remembered.headers.get("set-cookie") ?? "";
     const maxAge = Number(/Max-Age=(\d+)/i.exec(rememberedCookie)?.[1]);
     check(Math.abs(maxAge - 30 * 86_400) < 60, `com lembrar: Max-Age = 30 dias (${maxAge} s)`);
@@ -262,18 +262,18 @@ async function onlineChecks(): Promise<void> {
     await redis.pExpire(`session:${renewed.body.sessionId}`, 5_000);
     await call("GET", "/test/me", { bearer: renewed.body.token });
     check((await redis.pTTL(`session:${renewed.body.sessionId}`)) > 29 * 86_400_000, "requisição renova o TTL");
-    const absolute = await createSession({ accountType: "gym", accountId: gym, role: "GYM" }, web);
+    const absolute = await createSession({ accountType: "gym", accountId: gym, role: "GYM", gymId: `${run}-gym` }, web);
     await redis.hSet(`session:${absolute.body.sessionId}`, "createdAt", new Date(Date.now() - 25 * 3_600_000).toISOString());
     check((await call("GET", "/test/me", { cookie: absolute.cookie! })).status === 401, "absoluto vencido (web 1 dia) → 401");
     check(!(await redis.exists(`session:${absolute.body.sessionId}`)), "sessão vencida é apagada");
-    const nearEnd = await createSession({ accountType: "gym", accountId: gym, role: "GYM" }, web);
+    const nearEnd = await createSession({ accountType: "gym", accountId: gym, role: "GYM", gymId: `${run}-gym` }, web);
     await redis.hSet(`session:${nearEnd.body.sessionId}`, "createdAt", new Date(Date.now() - 86_400_000 + 600_000).toISOString());
     await call("GET", "/test/me", { cookie: nearEnd.cookie! });
     const nearTtl = await redis.pTTL(`session:${nearEnd.body.sessionId}`);
     check(nearTtl <= 600_000 && nearTtl > 590_000, `TTL limitado ao absoluto restante (${Math.round(nearTtl / 1000)} s)`);
 
     console.log("\nRotação (cookie)");
-    const rot = await createSession({ accountType: "gym", accountId: gym, role: "GYM", remember: true }, web);
+    const rot = await createSession({ accountType: "gym", accountId: gym, role: "GYM", gymId: `${run}-gym`, remember: true }, web);
     const rotId: string = rot.body.sessionId;
     const oldToken = rot.cookie!;
     const noRotation = await call("GET", "/test/me", { cookie: oldToken });

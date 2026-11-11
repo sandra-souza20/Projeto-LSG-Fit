@@ -17,7 +17,8 @@ import { redis } from "./redis.js";
 //   revoga a sessão inteira (detecção de reuso);
 // - `session-rotate-lock:<sessionId>`: trava curta para só uma requisição
 //   paralela fazer a rotação;
-// - `account-sessions:<user|gym>:<accountId>`: conjunto de sessionId da conta.
+// - `account-sessions:<user|gym>:<accountId>`: conjunto de sessionId da conta
+//   (na academia, a conta e o membro: gym_members.id).
 //
 // O token nunca é guardado em claro, só o seu sha256.
 
@@ -27,8 +28,11 @@ export type SessionTransport = "cookie" | "bearer";
 
 export type StartSessionInput = {
     accountType: AccountType;
+    // users.id ou gym_members.id.
     accountId: string;
     role: ActorRole;
+    // Só para a academia: academia do membro.
+    gymId?: string;
     // Só para a academia (web): "Lembrar deste dispositivo".
     remember?: boolean;
 };
@@ -46,6 +50,8 @@ export type ResolvedSession = {
     accountType: AccountType;
     accountId: string;
     role: ActorRole;
+    // Só para a academia: academia do membro.
+    gymId: string | null;
     transport: SessionTransport;
     csrfToken: string | null;
 };
@@ -62,6 +68,8 @@ export type SessionListItem = {
 };
 
 export const SESSION_COOKIE = "sid";
+// Não é HttpOnly: o app web lê e envia no header X-CSRF-Token.
+export const CSRF_COOKIE = "csrf_token";
 
 // ---------------------------------------------------------------------------
 // Tempos (seção 2.2)
@@ -113,11 +121,18 @@ function cookieOptions(): CookieOptions {
     };
 }
 
-function setSessionCookie(res: Response, token: string, remember: boolean, absoluteEnd: number): void {
+function setSessionCookie(
+    res: Response,
+    token: string,
+    csrfToken: string,
+    remember: boolean,
+    absoluteEnd: number,
+): void {
     const options = cookieOptions();
     // Sem "lembrar": cookie de sessão do navegador (some ao fechar).
     if (remember) options.maxAge = Math.max(0, absoluteEnd - Date.now());
     res.cookie(SESSION_COOKIE, token, options);
+    res.cookie(CSRF_COOKIE, csrfToken, { ...options, httpOnly: false });
 }
 
 function deviceNameOf(req: Request): string {
@@ -153,6 +168,8 @@ type StoredSession = {
     accountType: AccountType;
     accountId: string;
     role: ActorRole;
+    // Academia do membro ("" para aluno e profissional).
+    gymId: string;
     transport: SessionTransport;
     csrfToken: string;
     remember: "1" | "0";
@@ -167,7 +184,11 @@ type StoredSession = {
 };
 
 function isComplete(data: Record<string, string>): data is StoredSession {
-    return Boolean(data["accountType"] && data["accountId"] && data["role"] && data["transport"] && data["createdAt"]);
+    const base = Boolean(
+        data["accountType"] && data["accountId"] && data["role"] && data["transport"] && data["createdAt"],
+    );
+    // Sessão de academia sem gymId é do formato antigo (login da própria academia).
+    return base && (data["accountType"] !== "gym" || Boolean(data["gymId"]));
 }
 
 function absoluteEndOf(data: StoredSession): number {
@@ -184,10 +205,11 @@ function ttlOf(data: StoredSession, now: number): number {
 // por uma requisição em paralelo). O token renovado é sempre o atual, lido do
 // próprio hash: assim uma requisição com o token antigo, em paralelo com a
 // rotação, não estende a tolerância dele.
-// KEYS: session. ARGV: ttl (ms), lastActiveAt, ip.
+// KEYS: session. ARGV: ttl (ms), lastActiveAt, ip, deviceName ("" mantem o atual).
 const TOUCH_SCRIPT = `
 if redis.call("EXISTS", KEYS[1]) == 0 then return 0 end
 redis.call("HSET", KEYS[1], "lastActiveAt", ARGV[2], "ip", ARGV[3])
+if ARGV[4] ~= "" then redis.call("HSET", KEYS[1], "deviceName", ARGV[4]) end
 redis.call("PEXPIRE", KEYS[1], ARGV[1])
 local tokenHash = redis.call("HGET", KEYS[1], "tokenHash")
 if tokenHash then redis.call("PEXPIRE", "session-token:" .. tokenHash, ARGV[1]) end
@@ -228,6 +250,10 @@ async function destroySession(sessionId: string): Promise<void> {
  * Lê User-Agent, X-Device-Name e IP de `req`.
  */
 export async function startSession(req: Request, res: Response, input: StartSessionInput): Promise<StartedSession> {
+    if (input.accountType === "gym" && !input.gymId) {
+        throw new Error("startSession: sessão de academia sem gymId.");
+    }
+
     const transport: SessionTransport = input.role === "GYM" ? "cookie" : "bearer";
     const remember = transport === "cookie" && Boolean(input.remember);
     const token = newToken();
@@ -243,6 +269,7 @@ export async function startSession(req: Request, res: Response, input: StartSess
         accountType: input.accountType,
         accountId: input.accountId,
         role: input.role,
+        gymId: input.gymId ?? "",
         transport,
         csrfToken,
         remember: remember ? "1" : "0",
@@ -269,7 +296,7 @@ export async function startSession(req: Request, res: Response, input: StartSess
     );
 
     if (transport === "cookie") {
-        setSessionCookie(res, token, remember, now + policy.absoluteMs);
+        setSessionCookie(res, token, csrfToken, remember, now + policy.absoluteMs);
         return { sessionId, csrfToken };
     }
 
@@ -355,14 +382,15 @@ export async function resolveSession(
                 });
 
                 if (rotated === 1) {
-                    setSessionCookie(res, rotatedToken, data.remember === "1", absoluteEnd);
+                    setSessionCookie(res, rotatedToken, data.csrfToken, data.remember === "1", absoluteEnd);
                 }
             }
         }
 
         const touched = await redis.eval(TOUCH_SCRIPT, {
             keys: [sessionKeys.session(sessionId)],
-            arguments: [String(ttl), new Date(now).toISOString(), ipOf(req)],
+            // X-Device-Name atualiza o nome (ex.: app atualizado); sem o header, mantem.
+            arguments: [String(ttl), new Date(now).toISOString(), ipOf(req), deviceNameOf(req)],
         });
         if (touched !== 1) return null;
 
@@ -371,6 +399,7 @@ export async function resolveSession(
             accountType: data.accountType,
             accountId: data.accountId,
             role: data.role,
+            gymId: data.gymId || null,
             transport: data.transport,
             csrfToken: data.csrfToken || null,
         };
@@ -441,9 +470,10 @@ export async function revokeAllSessions(
     });
 }
 
-/** Apaga o cookie de sessão no navegador (`sid=; Max-Age=0`). */
+/** Apaga os cookies de sessão e de CSRF no navegador (`Max-Age=0`). */
 export function clearSessionCookie(res: Response): void {
     res.cookie(SESSION_COOKIE, "", { ...cookieOptions(), maxAge: 0 });
+    res.cookie(CSRF_COOKIE, "", { ...cookieOptions(), httpOnly: false, maxAge: 0 });
 }
 
 // ---------------------------------------------------------------------------

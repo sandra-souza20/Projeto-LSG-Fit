@@ -3,6 +3,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppHeader } from '@/components/app-header';
+import { CheckInCard } from '@/components/check-in-card';
 import { ConfirmLogoutModal } from '@/components/confirm-logout-modal';
 import { PrimaryButton } from '@/components/primary-button';
 import { Screen } from '@/components/screen';
@@ -14,8 +15,10 @@ import { useAuth } from '@/contexts/auth-context';
 import { useProfessionals, type ProfessionalSummary } from '@/hooks/use-professionals';
 import { useTheme } from '@/hooks/use-theme';
 import { useWorkoutPlan } from '@/hooks/use-workout-plan';
+import { useCheckIn } from '@/hooks/use-check-in';
+import { useTodayWorkout } from '@/hooks/use-today-workout';
 import { useWorkoutSessions } from '@/hooks/use-workout-sessions';
-import { WORKOUT_LETTERS } from '@/types/workout';
+import { WEEKDAY_LABELS } from '@/types/workout';
 import { openWhatsApp } from '@/utils/contact';
 
 type Shortcut = { label: string; description: string; href: Href; highlight?: boolean };
@@ -35,7 +38,7 @@ export default function HomeScreen() {
   const { plan, reload: reloadPlan } = useWorkoutPlan();
   const [currentMonth] = useState(() => new Date());
   const [refreshKey, setRefreshKey] = useState(0);
-  const { sessions, trainedDays } = useWorkoutSessions(currentMonth, undefined, refreshKey);
+  const { trainedDays } = useWorkoutSessions(currentMonth, undefined, refreshKey);
   const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
   const [isSelectModalVisible, setIsSelectModalVisible] = useState(false);
   const [isLinking, setIsLinking] = useState(false);
@@ -46,22 +49,20 @@ export default function HomeScreen() {
     [professionals, user?.professionalId],
   );
 
-  const activeDays = useMemo(() => plan.filter((day) => day.entries.length > 0), [plan]);
-
-  // Sugere o treino seguinte ao ultimo concluido (A -> B -> C -> A...).
-  const nextWorkout = useMemo(() => {
-    if (activeDays.length === 0) return null;
-    const lastSession = sessions[sessions.length - 1];
-    const lastIndex = lastSession ? activeDays.findIndex((day) => day.dayOfWeek === lastSession.dayOfWeek) : -1;
-    const index = (lastIndex + 1) % activeDays.length;
-    return { day: activeDays[index]!, letter: WORKOUT_LETTERS[index]! };
-  }, [activeDays, sessions]);
+  // Treino do dia (o seguinte ao ultimo concluido). Depois de concluir, mostra
+  // o proximo, mas so libera amanha.
+  const { next: nextWorkout, trainedToday, reload: reloadToday } = useTodayWorkout(plan);
+  // Aluno matriculado: check-in aprovado pela academia antes de treinar.
+  const checkIn = useCheckIn();
+  const { reload: reloadCheckIn } = checkIn;
 
   useFocusEffect(
     useCallback(() => {
       reloadPlan();
+      reloadToday();
+      reloadCheckIn();
       setRefreshKey((key) => key + 1);
-    }, [reloadPlan]),
+    }, [reloadPlan, reloadToday, reloadCheckIn]),
   );
 
   async function handleSelectProfessional(professional: ProfessionalSummary) {
@@ -82,20 +83,43 @@ export default function HomeScreen() {
       <Screen
         withTabBar
         header={<AppHeader name={user?.name ?? ''} onLogout={() => setIsLogoutModalVisible(true)} />}>
+        {checkIn.today?.required && nextWorkout?.isToday && (
+          <CheckInCard
+            today={checkIn.today}
+            isSubmitting={checkIn.isSubmitting}
+            error={checkIn.error}
+            onRequest={checkIn.requestCheckIn}
+            onCancel={checkIn.cancelCheckIn}
+          />
+        )}
+
         <ThemedView type="backgroundElement" style={styles.heroCard}>
           <ThemedText type="small" themeColor="textSecondary">
-            {nextWorkout ? 'Próximo treino' : 'Pronto para treinar?'}
+            {!nextWorkout
+              ? 'Pronto para treinar?'
+              : nextWorkout.isToday
+                ? 'Treino de hoje'
+                : trainedToday
+                  ? 'Treino de hoje concluído · próximo treino'
+                  : 'Hoje é dia de descanso · próximo treino'}
           </ThemedText>
           {nextWorkout ? (
             <>
-              <ThemedText style={styles.heroTitle}>Treino {nextWorkout.letter}</ThemedText>
+              <ThemedText style={styles.heroTitle}>{WEEKDAY_LABELS[nextWorkout.day.dayOfWeek]}</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 {nextWorkout.day.entries.length}{' '}
                 {nextWorkout.day.entries.length === 1 ? 'exercício' : 'exercícios'} ·{' '}
                 {[...new Set(nextWorkout.day.entries.map((entry) => entry.exercise.muscleGroup))].join(', ')}
               </ThemedText>
               <PrimaryButton
-                label="Iniciar treino"
+                label={
+                  !nextWorkout.isToday
+                    ? `Disponível ${nextWorkout.when}`
+                    : checkIn.canTrain
+                      ? 'Iniciar treino'
+                      : 'Faça o check-in para iniciar'
+                }
+                disabled={!nextWorkout.isToday || !checkIn.canTrain}
                 style={styles.heroButton}
                 onPress={() =>
                   router.push({
@@ -108,8 +132,8 @@ export default function HomeScreen() {
           ) : (
             <ThemedText type="small" themeColor="textSecondary">
               {user?.professionalId
-                ? 'Seu profissional ainda não montou o seu treino. Assim que ele montar, ele aparece aqui.'
-                : 'Escolha um profissional para que ele monte o seu treino.'}
+                ? 'Sua ficha ainda está vazia. Monte seu treino na aba Treinos ou peça ao seu profissional.'
+                : 'Sua ficha ainda está vazia. Monte seu treino na aba Treinos.'}
             </ThemedText>
           )}
         </ThemedView>
@@ -249,6 +273,9 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   shortcut: {
+    // Preenche a altura da linha: os dois cards da mesma linha ficam iguais,
+    // mesmo quando a descricao de um quebra em duas linhas.
+    flexGrow: 1,
     borderWidth: 1,
     borderRadius: Radius.large,
     padding: Spacing.three,

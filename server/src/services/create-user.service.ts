@@ -12,8 +12,6 @@ type IRequestDto = {
     email: string;
     password: string;
     confirmPassword: string;
-    // Matricula opcional ja no cadastro (relacao "Matricula" do DER).
-    gymId?: string | null;
 }
 
 // Cadastro livre, so de aluno. Profissionais sao cadastrados pela academia.
@@ -48,24 +46,12 @@ export class CreateUserService {
 
         await ensureEmailAvailable(email, pendingStudent ? { ignoreUserId: pendingStudent.id } : {});
 
-        const gymId = dto.gymId || null;
-
-        if (gymId) {
-            const gym = await prisma.gym.findUnique({ where: { id: gymId } });
-
-            if (!gym) {
-                throw new AppError("Academia não encontrada.", 404);
-            }
-        }
-
         const hashedPassword = await hash(dto.password);
 
         const data = {
             name,
             password: hashedPassword,
             role: "STUDENT" as const,
-            gymId,
-            gymEnrolledAt: gymId ? new Date() : null,
             emailVerified: !emailVerificationEnabled,
         };
 

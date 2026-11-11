@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
+import { prisma } from "../database/prisma.js";
 import { handleError } from "../utils/app-error.js";
 import { resolveSession, SESSION_COOKIE, type ActorRole, type ResolvedSession } from "../utils/session.js";
 import { CSRF_INVALID_BODY, isWebOrigin } from "./check-web-origin.js";
@@ -93,6 +94,7 @@ export async function ensureAuthenticated(req: Request, res: Response, next: Nex
 
     req.userId = session.accountId;
     req.userRole = session.role;
+    if (session.gymId) req.gymId = session.gymId;
     req.sessionId = session.sessionId;
     req.sessionTransport = session.transport;
     res.locals["session"] = session;
@@ -110,4 +112,21 @@ export function restrictTo(...allowedRoles: ActorRole[]) {
 
         next();
     };
+}
+
+// Usar depois de restrictTo("GYM"): só o dono (OWNER) da academia passa.
+// O papel é lido do banco a cada requisição, não da sessão.
+export async function restrictToGymOwner(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+        const member = await prisma.gymMember.findUnique({ where: { id: req.userId }, select: { role: true } });
+
+        if (member?.role !== "OWNER") {
+            res.status(403).json({ message: "Só o dono da academia pode fazer isso.", code: "FORBIDDEN_ROLE" });
+            return;
+        }
+
+        next();
+    } catch (error) {
+        handleError(error, res);
+    }
 }

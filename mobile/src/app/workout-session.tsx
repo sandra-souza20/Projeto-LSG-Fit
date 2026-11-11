@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
+import { ConfirmModal } from '@/components/confirm-modal';
 import { PrimaryButton } from '@/components/primary-button';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
@@ -11,9 +12,11 @@ import { ExerciseMedia } from '@/components/workout/exercise-media';
 import { RegisterWeightModal } from '@/components/workout/register-weight-modal';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useCheckIn } from '@/hooks/use-check-in';
+import { useTodayWorkout } from '@/hooks/use-today-workout';
 import { useWorkoutPlan } from '@/hooks/use-workout-plan';
 import { useFinishWorkout } from '@/hooks/use-workout-sessions';
-import { formatRest, type Weekday, type WorkoutEntry } from '@/types/workout';
+import { formatRest, WEEKDAY_LABELS, type Weekday, type WorkoutEntry } from '@/types/workout';
 import { formatDecimal } from '@/utils/contact';
 
 // Quando o profissional nao define o descanso, usa um padrao comum de academia.
@@ -32,7 +35,10 @@ export default function WorkoutSessionScreen() {
   const router = useRouter();
   const { day, letter } = useLocalSearchParams<{ day: Weekday; letter?: string }>();
   const { plan, isLoading, error, registerWeight } = useWorkoutPlan();
+  const today = useTodayWorkout(plan);
+  const checkIn = useCheckIn();
   const finishWorkout = useFinishWorkout();
+  const [isQuitModalVisible, setIsQuitModalVisible] = useState(false);
 
   const [startedAt] = useState(() => Date.now());
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
@@ -51,6 +57,24 @@ export default function WorkoutSessionScreen() {
   const totalSets = entries.reduce((sum, entry) => sum + entry.sets, 0);
   const doneSets = entries.reduce((sum, entry) => sum + Math.min(completedSets[entry.id] ?? 0, entry.sets), 0);
   const progress = totalSets ? doneSets / totalSets : 0;
+  // Para finalizar: pelo menos uma serie feita num exercicio com carga registrada
+  // (exercicio de peso corporal nao tem carga: basta a serie).
+  const canFinish = entries.some(
+    (entry) => (completedSets[entry.id] ?? 0) >= 1 && (!entry.exercise.usesLoad || entry.weight != null),
+  );
+  // So o treino do dia pode ser feito, e um por dia (o servidor tambem confere).
+  const needsCheckIn = !checkIn.isLoading && !checkIn.canTrain;
+  const isBlocked =
+    !isLoading &&
+    !today.isLoading &&
+    (!today.next?.isToday || today.next.day.dayOfWeek !== day || needsCheckIn);
+
+  function quit() {
+    setIsQuitModalVisible(false);
+    setRest(null);
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
+  }
 
   // RNF01: o relogio do treino so atualiza a cada 30s, evitando renderizar
   // a tela toda a cada segundo enquanto o aluno treina.
@@ -116,7 +140,7 @@ export default function WorkoutSessionScreen() {
     }
   }
 
-  const title = `Treino ${letter ?? ''}`.trim();
+  const title = day ? `Treino de ${WEEKDAY_LABELS[day].toLowerCase()}` : 'Treino';
 
   if (isFinished) {
     const minutes = Math.max(1, Math.round((Date.now() - startedAt) / 60000));
@@ -133,6 +157,34 @@ export default function WorkoutSessionScreen() {
           </ThemedText>
           <ThemedText themeColor="textSecondary" style={styles.centerText}>
             {doneSets} de {totalSets} séries em {minutes} min. O treino já conta na sua frequência do mês.
+          </ThemedText>
+          <PrimaryButton label="Voltar ao início" style={styles.fullWidth} onPress={() => router.replace('/')} />
+        </View>
+      </Screen>
+    );
+  }
+
+  if (isBlocked) {
+    return (
+      <Screen backLabel="Voltar">
+        <View style={styles.finished}>
+          <ThemedText type="subtitle" style={styles.centerText}>
+            {today.trainedToday
+              ? 'Treino de hoje concluído'
+              : today.isRestDay
+                ? 'Hoje é dia de descanso'
+                : today.next?.isToday && today.next.day.dayOfWeek === day && needsCheckIn
+                  ? 'Faça o check-in primeiro'
+                  : 'Esse não é o treino de hoje'}
+          </ThemedText>
+          <ThemedText themeColor="textSecondary" style={styles.centerText}>
+            {!today.next
+              ? 'Sua ficha não tem treinos.'
+              : !today.next.isToday
+                ? `O próximo treino (${WEEKDAY_LABELS[today.next.day.dayOfWeek].toLowerCase()}) fica disponível ${today.next.when}.`
+                : today.next.day.dayOfWeek === day && needsCheckIn
+                  ? 'Peça o check-in na tela inicial e aguarde a aprovação da academia.'
+                  : `O treino de hoje é o de ${WEEKDAY_LABELS[today.next.day.dayOfWeek].toLowerCase()}.`}
           </ThemedText>
           <PrimaryButton label="Voltar ao início" style={styles.fullWidth} onPress={() => router.replace('/')} />
         </View>
@@ -191,7 +243,7 @@ export default function WorkoutSessionScreen() {
                     <View style={styles.flex}>
                       <ThemedText type="smallBold">{entry.exercise.name}</ThemedText>
                       <ThemedText type="small" themeColor="textSecondary">
-                        {entry.exercise.muscleGroup} · {entry.exercise.equipment}
+                        {entry.exercise.muscleGroup} · {entry.exercise.equipmentLabel}
                       </ThemedText>
                     </View>
                   </View>
@@ -203,18 +255,20 @@ export default function WorkoutSessionScreen() {
                       label="Descanso"
                       value={formatRest(entry.restSeconds ?? DEFAULT_REST_SECONDS)}
                     />
-                    <Pressable
-                      style={styles.metricPressable}
-                      onPress={() => {
-                        setWeightError(null);
-                        setWeightEntry(entry);
-                      }}>
-                      <Metric
-                        label="Carga ✎"
-                        value={entry.weight != null ? `${formatDecimal(entry.weight)}kg` : '—'}
-                        accent
-                      />
-                    </Pressable>
+                    {entry.exercise.usesLoad && (
+                      <Pressable
+                        style={styles.metricPressable}
+                        onPress={() => {
+                          setWeightError(null);
+                          setWeightEntry(entry);
+                        }}>
+                        <Metric
+                          label="Carga ✎"
+                          value={entry.weight != null ? `${formatDecimal(entry.weight)}kg` : '—'}
+                          accent
+                        />
+                      </Pressable>
+                    )}
                   </View>
 
                   <View style={styles.sets}>
@@ -261,10 +315,23 @@ export default function WorkoutSessionScreen() {
                 {finishError}
               </ThemedText>
             )}
+            {canFinish ? (
+              <PrimaryButton
+                label={doneSets >= totalSets ? 'Finalizar treino' : `Finalizar treino (${doneSets}/${totalSets})`}
+                isLoading={isFinishing}
+                onPress={handleFinish}
+              />
+            ) : (
+              <ThemedText type="small" themeColor="textSecondary" style={styles.centerText}>
+                Para finalizar, conclua pelo menos uma série e, nos exercícios com carga, registre a carga (toque em
+                &quot;Carga ✎&quot;).
+              </ThemedText>
+            )}
             <PrimaryButton
-              label={doneSets >= totalSets ? 'Finalizar treino' : `Finalizar treino (${doneSets}/${totalSets})`}
-              isLoading={isFinishing}
-              onPress={handleFinish}
+              label="Desistir do treino"
+              variant="secondary"
+              disabled={isFinishing}
+              onPress={() => setIsQuitModalVisible(true)}
             />
             {/* Espaco para o banner de descanso nao cobrir o fim da lista. */}
             {rest && <View style={styles.restSpacer} />}
@@ -294,6 +361,15 @@ export default function WorkoutSessionScreen() {
           </ThemedView>
         </Animated.View>
       )}
+
+      <ConfirmModal
+        visible={isQuitModalVisible}
+        title="Desistir do treino"
+        message="O treino não será registrado e não conta na sua frequência. Você pode iniciá-lo de novo depois."
+        confirmLabel="Desistir"
+        onCancel={() => setIsQuitModalVisible(false)}
+        onConfirm={quit}
+      />
 
       <RegisterWeightModal
         entry={weightEntry}

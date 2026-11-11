@@ -25,7 +25,7 @@ export class AuthenticateUserService {
         // Profissional cadastrado pela academia ainda nao criou a senha.
         if (!user.password) {
             throw new AppError(
-                "Conta ainda não ativada. Use o código enviado para o seu e-mail.",
+                "Conta ainda não ativada. Abra o link do convite enviado para o seu e-mail para criar a senha.",
                 403,
                 "ACCOUNT_NOT_ACTIVATED",
             );

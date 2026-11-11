@@ -12,8 +12,8 @@ type ExerciseDetailsModalProps = {
   onClose: () => void;
 };
 
-// Usado no catalogo do aluno, que so pode consultar exercicios (ver
-// instrucoes, video/gif) — quem monta a ficha e o profissional.
+// Detalhes de um exercicio da biblioteca (instrucoes, video/gif), sem
+// adicionar a ficha. Usado na biblioteca do profissional.
 export function ExerciseDetailsModal({ exercise, onClose }: ExerciseDetailsModalProps) {
   const theme = useTheme();
 
@@ -25,7 +25,7 @@ export function ExerciseDetailsModal({ exercise, onClose }: ExerciseDetailsModal
             {exercise?.name}
           </ThemedText>
           <ThemedText themeColor="textSecondary" type="small">
-            {exercise?.muscleGroup} · {exercise?.equipment}
+            {exercise?.muscleGroup} · {exercise?.equipmentLabel}
           </ThemedText>
 
           <ScrollView style={styles.scroll}>{exercise && <ExerciseMedia exercise={exercise} />}</ScrollView>

@@ -30,7 +30,7 @@ export function AddExerciseModal({ exercise, isSubmitting, serverError, onClose,
     const setsNumber = Number(sets);
     const repsNumber = Number(reps);
     const trimmedWeight = weight.trim().replace(',', '.');
-    const weightNumber = trimmedWeight ? Number(trimmedWeight) : null;
+    const weightNumber = trimmedWeight && exercise?.usesLoad ? Number(trimmedWeight) : null;
     const restNumber = rest.trim() ? Number(rest.trim()) : null;
 
     if (!setsNumber || setsNumber < 1 || !repsNumber || repsNumber < 1) {
@@ -60,7 +60,7 @@ export function AddExerciseModal({ exercise, isSubmitting, serverError, onClose,
             {exercise?.name}
           </ThemedText>
           <ThemedText themeColor="textSecondary" type="small">
-            {exercise?.muscleGroup} · {exercise?.equipment}
+            {exercise?.muscleGroup} · {exercise?.equipmentLabel}
           </ThemedText>
 
           <ThemedText type="smallBold" style={styles.label}>
@@ -136,20 +136,25 @@ export function AddExerciseModal({ exercise, isSubmitting, serverError, onClose,
             </View>
           </View>
 
-          <ThemedText type="smallBold" style={styles.label}>
-            Peso (kg) — opcional
-          </ThemedText>
-          <TextInput
-            style={[
-              styles.input,
-              { backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.border },
-            ]}
-            placeholder="Ex: 20"
-            placeholderTextColor={theme.textSecondary}
-            keyboardType="decimal-pad"
-            value={weight}
-            onChangeText={setWeight}
-          />
+          {/* Peso corporal: sem campo de carga. */}
+          {exercise?.usesLoad && (
+            <>
+              <ThemedText type="smallBold" style={styles.label}>
+                Peso (kg) — opcional
+              </ThemedText>
+              <TextInput
+                style={[
+                  styles.input,
+                  { backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.border },
+                ]}
+                placeholder="Ex: 20"
+                placeholderTextColor={theme.textSecondary}
+                keyboardType="decimal-pad"
+                value={weight}
+                onChangeText={setWeight}
+              />
+            </>
+          )}
 
           {(error || serverError) && (
             <ThemedText type="small" themeColor="danger">

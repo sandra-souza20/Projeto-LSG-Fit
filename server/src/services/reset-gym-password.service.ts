@@ -3,7 +3,8 @@ import { prisma } from "../database/prisma.js";
 import { AppError } from "../utils/app-error.js";
 import { normalizeEmail } from "../utils/account-email.js";
 import { consumeAuthCode, INVALID_CODE_MESSAGE } from "../utils/auth-code.js";
-import { serializeGym } from "../utils/serializers.js";
+import { GYM_ADDRESS_SELECT } from "../utils/gym-address.js";
+import { GYM_MEMBER_SELECT, serializeGym, serializeGymMember } from "../utils/serializers.js";
 
 type IRequestDto = {
     email: string;
@@ -12,7 +13,7 @@ type IRequestDto = {
     confirmPassword: string;
 }
 
-// O controller revoga as outras sessoes da academia e cria uma nova.
+// O controller revoga as outras sessoes do membro e cria uma nova.
 export class ResetGymPasswordService {
     async execute(dto: IRequestDto) {
         if (!dto.password) {
@@ -23,22 +24,27 @@ export class ResetGymPasswordService {
             throw new AppError("As senhas não coincidem.");
         }
 
-        const gym = await prisma.gym.findUnique({
+        const member = await prisma.gymMember.findUnique({
             where: { email: normalizeEmail(dto.email) },
-            select: { id: true },
+            select: { id: true, password: true },
         });
 
-        if (!gym) {
+        // Convidado sem senha usa o link do convite, nao a redefinicao.
+        if (!member?.password) {
             throw new AppError(INVALID_CODE_MESSAGE);
         }
 
-        await consumeAuthCode({ gymId: gym.id }, "PASSWORD_RESET", dto.code);
+        await consumeAuthCode({ gymMemberId: member.id }, "PASSWORD_RESET", dto.code);
 
-        const updatedGym = await prisma.gym.update({
-            where: { id: gym.id },
+        const updated = await prisma.gymMember.update({
+            where: { id: member.id },
             data: { password: await hash(dto.password) },
+            select: {
+                ...GYM_MEMBER_SELECT,
+                gym: { select: { id: true, name: true, phone: true, equipment: true, createdAt: true, updatedAt: true, ...GYM_ADDRESS_SELECT } },
+            },
         });
 
-        return { gym: serializeGym(updatedGym) };
+        return { member: serializeGymMember(updated), gym: serializeGym(updated.gym), session: { id: updated.id, gymId: updated.gymId } };
     }
 }

@@ -12,6 +12,8 @@ import { formatRest, WEEKDAY_LABELS, type WorkoutDay, type WorkoutEntry } from '
 
 type WorkoutDaySectionProps = {
   day: WorkoutDay;
+  // Conta logada: mostra "Adicionado por você" ou o nome de quem adicionou.
+  viewerId?: string;
   onEditEntry: (entry: WorkoutEntry) => void;
   onRemoveEntry?: (id: string) => void;
   editLabel?: string;
@@ -24,14 +26,25 @@ type WorkoutDaySectionProps = {
   numbered?: boolean;
   // Quando informado, mostra o botao para abrir a tela de execucao do treino.
   onStart?: () => void;
+  // Sem onStart: texto no lugar do botao (ex.: "Disponível amanhã").
+  startHint?: string;
 };
 
 function formatWeight(weight: number) {
   return Number.isInteger(weight) ? String(weight) : String(weight).replace('.', ',');
 }
 
+function addedByLabel(entry: WorkoutEntry, viewerId?: string) {
+  if (!entry.addedBy) return null;
+  if (entry.addedBy.id === viewerId) return 'Adicionado por você';
+  return entry.addedBy.role === 'PROFESSIONAL'
+    ? `Adicionado pelo profissional ${entry.addedBy.name}`
+    : `Adicionado pelo aluno ${entry.addedBy.name}`;
+}
+
 export function WorkoutDaySection({
   day,
+  viewerId,
   onEditEntry,
   onRemoveEntry,
   editLabel = 'Editar',
@@ -39,6 +52,7 @@ export function WorkoutDaySection({
   collapsible = false,
   numbered = false,
   onStart,
+  startHint,
 }: WorkoutDaySectionProps) {
   const theme = useTheme();
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -112,6 +126,21 @@ export function WorkoutDaySection({
                     </View>
                   </View>
 
+                  {(entry.addedBy || entry.exercise.availableAtGym === false) && (
+                    <View style={styles.entryMeta}>
+                      {entry.addedBy && (
+                        <ThemedText type="small" themeColor="textSecondary">
+                          {addedByLabel(entry, viewerId)}
+                        </ThemedText>
+                      )}
+                      {entry.exercise.availableAtGym === false && (
+                        <ThemedText type="small" themeColor="danger">
+                          Não disponível na academia
+                        </ThemedText>
+                      )}
+                    </View>
+                  )}
+
                   {isExpanded && (
                     <Animated.View entering={FadeIn.duration(150)} style={styles.entryExpanded}>
                       <ExerciseMedia exercise={entry.exercise} />
@@ -120,7 +149,15 @@ export function WorkoutDaySection({
                 </View>
               );
             })}
-            {onStart && <PrimaryButton label={`Iniciar ${headerLabel}`} onPress={onStart} />}
+            {onStart ? (
+              <PrimaryButton label={`Iniciar ${headerLabel}`} onPress={onStart} />
+            ) : (
+              startHint && (
+                <ThemedText type="small" themeColor="textSecondary" style={styles.startHint}>
+                  {startHint}
+                </ThemedText>
+              )
+            )}
           </View>
         ))}
     </ThemedView>
@@ -166,6 +203,13 @@ const styles = StyleSheet.create({
   entryActions: {
     flexDirection: 'row',
     gap: Spacing.three,
+  },
+  startHint: {
+    textAlign: 'center',
+  },
+  entryMeta: {
+    marginTop: Spacing.one,
+    gap: Spacing.half,
   },
   entryExpanded: {
     marginTop: Spacing.three,

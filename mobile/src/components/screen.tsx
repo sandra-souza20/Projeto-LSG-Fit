@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 
 type ScreenProps = {
   title?: string;
@@ -15,13 +16,18 @@ type ScreenProps = {
   withTabBar?: boolean;
   scroll?: boolean;
   header?: ReactNode;
+  // Com scroll: liga o "puxar para atualizar".
+  onRefresh?: () => Promise<unknown> | void;
   children: ReactNode;
 };
 
+const noRefresh = () => undefined;
+
 // Estrutura comum das telas internas: fundo do tema, largura maxima,
 // margens e (opcionalmente) rolagem e link de voltar.
-export function Screen({ title, backLabel, withTabBar, scroll = true, header, children }: ScreenProps) {
+export function Screen({ title, backLabel, withTabBar, scroll = true, header, onRefresh, children }: ScreenProps) {
   const router = useRouter();
+  const refreshControl = usePullToRefresh(onRefresh ?? noRefresh);
   const bottomInset = withTabBar ? BottomTabInset + Spacing.four : Spacing.four;
 
   return (
@@ -46,7 +52,8 @@ export function Screen({ title, backLabel, withTabBar, scroll = true, header, ch
             style={styles.flex}
             contentContainerStyle={[styles.content, { paddingBottom: bottomInset }]}
             keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}>
+            showsVerticalScrollIndicator={false}
+            refreshControl={onRefresh ? refreshControl : undefined}>
             {children}
           </ScrollView>
         ) : (

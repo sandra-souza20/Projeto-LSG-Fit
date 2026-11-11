@@ -9,9 +9,8 @@ import type { Exercise } from '@/types/exercise';
 type ExerciseCatalogItemProps = {
   exercise: Exercise;
   onPress: () => void;
-  // 'add' (padrao, usado pelo profissional montando a ficha) mostra um "+" em
-  // destaque; 'view' (usado pelo aluno, que so pode consultar o catalogo) mostra
-  // um indicador neutro de "ver detalhes".
+  // 'add' (padrao, montando a ficha) mostra um "+" em destaque; 'view'
+  // (so consulta, ex.: biblioteca do profissional) mostra "ver detalhes".
   variant?: 'add' | 'view';
 };
 
@@ -24,8 +23,13 @@ export function ExerciseCatalogItem({ exercise, onPress, variant = 'add' }: Exer
       <View style={styles.info}>
         <ThemedText type="smallBold">{exercise.name}</ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
-          {exercise.muscleGroup} · {exercise.equipment}
+          {exercise.muscleGroup} · {exercise.equipmentLabel}
         </ThemedText>
+        {exercise.availableAtGym === false && (
+          <ThemedText type="small" themeColor="danger">
+            Não disponível na academia
+          </ThemedText>
+        )}
       </View>
 
       <Pressable

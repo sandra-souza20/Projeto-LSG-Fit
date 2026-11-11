@@ -28,6 +28,10 @@ model User {
   // Profissional: academia que o contratou (relacao "Contrata" do DER).
   gymId String? @map("gym_id") @db.Uuid
   gymEnrolledAt DateTime? @map("gym_enrolled_at")
+  // Aluno inativado pela academia: nao consegue fazer check-in e ve o motivo.
+  // Os dois ficam null com o aluno ativo (e ao trocar ou cancelar a matricula).
+  gymInactivatedAt DateTime? @map("gym_inactivated_at")
+  gymInactiveReason String? @map("gym_inactive_reason")
   phone String?
   // RF05: dados do profissional exibidos na "Pagina de Perfis".
   specialty String?
@@ -38,44 +42,85 @@ model User {
   professional User? @relation("Orienta", fields: [professionalId], references: [id], onDelete: SetNull)
   students User[] @relation("Orienta")
   gym Gym? @relation(fields: [gymId], references: [id], onDelete: SetNull)
-  workoutEntries WorkoutEntry[]
+  workoutEntries WorkoutEntry[] @relation("FichaDoAluno")
+  // Exercicios que esta conta colocou em alguma ficha (a propria ou a de um aluno).
+  addedWorkoutEntries WorkoutEntry[] @relation("AdicionadoPor")
   physicalAssessments PhysicalAssessment[] @relation("AvaliacaoDoAluno")
   recordedAssessments PhysicalAssessment[] @relation("AvaliacaoRegistrada")
   workoutSessions WorkoutSession[]
-  createdExercises Exercise[]
   authCodes AuthCode[]
+  checkIns CheckIn[]
 
   @@map("users")
 }
 
 // Corresponde ao ator "Academia" do DER.
+// A academia (organizacao). Quem entra no app web sao os membros
+// (gym_members); a academia em si nao tem login.
 model Gym {
   id String @id @default(uuid()) @db.Uuid
   name String
-  email String @unique
-  password String
   phone String?
-  address String?
+  // Endereco em campos separados (exibido no app mobile). Ou todos os
+  // obrigatorios preenchidos, ou nenhum (validado na API).
+  addressZipCode String? @map("address_zip_code")
+  addressStreet String? @map("address_street")
+  addressNumber String? @map("address_number")
+  addressComplement String? @map("address_complement")
+  addressDistrict String? @map("address_district")
+  addressCity String? @map("address_city")
+  addressState String? @map("address_state") @db.Char(2)
+  // Equipamentos que a academia tem. Os comuns ja vem marcados no cadastro.
+  equipment Equipment[] @default([DUMBBELL, BARBELL, BENCH, MAT, PULL_UP_BAR])
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
 
   // Alunos matriculados e profissionais contratados (diferenciar pelo role).
   users User[]
-  authCodes AuthCode[]
+  members GymMember[]
+  checkIns CheckIn[]
 
   @@map("gyms")
+}
+
+// OWNER: quem cadastrou a academia; unico que convida e remove membros.
+// ADMIN: administra todo o resto.
+enum GymMemberRole {
+  OWNER
+  ADMIN
+}
+
+// Pessoas que administram a academia no app web, cada uma com login proprio.
+model GymMember {
+  id String @id @default(uuid()) @db.Uuid
+  gymId String @map("gym_id") @db.Uuid
+  name String
+  email String @unique
+  // null: convidado que ainda nao criou a senha.
+  password String?
+  role GymMemberRole @default(ADMIN)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
+
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  authCodes AuthCode[]
+  decidedCheckIns CheckIn[]
+
+  @@index([gymId])
+  @@map("gym_members")
 }
 
 enum AuthCodePurpose {
   EMAIL_VERIFICATION
   PASSWORD_RESET
   PROFESSIONAL_INVITE
+  GYM_MEMBER_INVITE
 }
 
 // Codigos de 6 digitos enviados por e-mail (confirmacao de cadastro,
 // redefinicao de senha e convite do profissional). Guarda so o hash sha256.
-// Cada codigo pertence a exatamente uma conta, um usuario OU uma academia
-// (garantido por um CHECK na migracao).
+// Cada codigo pertence a exatamente uma conta, um usuario OU um membro da
+// academia (garantido por um CHECK na migracao).
 model AuthCode {
   id String @id @default(uuid()) @db.Uuid
   purpose AuthCodePurpose
@@ -83,32 +128,54 @@ model AuthCode {
   expiresAt DateTime @map("expires_at")
   attempts Int @default(0)
   userId String? @map("user_id") @db.Uuid
-  gymId String? @map("gym_id") @db.Uuid
+  gymMemberId String? @map("gym_member_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
 
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
-  gym Gym? @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  gymMember GymMember? @relation(fields: [gymMemberId], references: [id], onDelete: Cascade)
 
   @@index([userId, purpose])
-  @@index([gymId, purpose])
+  @@index([gymMemberId, purpose])
+  @@index([codeHash])
   @@map("auth_codes")
 }
 
+// Lista fixa de equipamentos (rotulos em src/utils/equipment.ts). Um
+// exercicio fica disponivel na academia quando ela tem todos os equipamentos
+// dele; BODYWEIGHT (peso corporal) esta sempre disponivel.
+enum Equipment {
+  BODYWEIGHT
+  DUMBBELL
+  BARBELL
+  BENCH
+  MAT
+  PULL_UP_BAR
+  KETTLEBELL
+  RESISTANCE_BAND
+  CABLE
+  SMITH
+  LEG_PRESS
+  LEG_EXTENSION
+  LEG_CURL
+  PEC_DECK
+  PREACHER_BENCH
+  CALF_RAISE_MACHINE
+}
+
+// RF08: biblioteca unica de exercicios, cadastrada so pela LSG FIT (seed), com
+// GIF e instrucoes no mesmo padrao para todas as academias.
 model Exercise {
   id String @id @default(uuid()) @db.Uuid
   name String
   muscleGroup String @map("muscle_group")
-  equipment String
+  // Todos os equipamentos necessarios (ex.: supino reto = barra + banco).
+  equipment Equipment[]
   instructions String?
   gifUrl String? @map("gif_url")
   videoUrl String? @map("video_url")
-  // RF08: exercicios da biblioteca padrao (seed) ficam com null; os
-  // cadastrados por um profissional guardam quem os criou.
-  createdByProfessionalId String? @map("created_by_professional_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
 
-  createdByProfessional User? @relation(fields: [createdByProfessionalId], references: [id], onDelete: SetNull)
   workoutEntries WorkoutEntry[]
 
   @@map("exercises")
@@ -135,11 +202,14 @@ model WorkoutEntry {
   // RF03: tempo de descanso entre as series, em segundos.
   restSeconds Int? @map("rest_seconds")
   order Int
+  // Quem colocou o exercicio na ficha: o proprio aluno ou o profissional.
+  addedById String? @map("added_by_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @default(now()) @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation("FichaDoAluno", fields: [userId], references: [id], onDelete: Cascade)
   exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  addedBy User? @relation("AdicionadoPor", fields: [addedById], references: [id], onDelete: SetNull)
 
   @@unique([userId, exerciseId, dayOfWeek])
   @@map("workout_entries")
@@ -154,9 +224,46 @@ model WorkoutSession {
   completedAt DateTime @default(now()) @map("completed_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checkIn CheckIn?
 
   @@index([userId, completedAt])
   @@map("workout_sessions")
+}
+
+// PENDING expira em 15 min sem resposta (EXPIRED). APPROVED vale ate o fim do
+// dia (fuso APP_TIMEZONE) e libera um treino. CANCELLED: o aluno desistiu do pedido.
+enum CheckInStatus {
+  PENDING
+  APPROVED
+  DENIED
+  EXPIRED
+  CANCELLED
+}
+
+// Check-in do aluno matriculado: pedido no app, aprovado ou negado pela
+// academia no painel web (em tempo real, via SSE).
+model CheckIn {
+  id String @id @default(uuid()) @db.Uuid
+  studentId String @map("student_id") @db.Uuid
+  gymId String @map("gym_id") @db.Uuid
+  status CheckInStatus @default(PENDING)
+  requestedAt DateTime @default(now()) @map("requested_at")
+  decidedAt DateTime? @map("decided_at")
+  // Membro da academia que aprovou ou negou.
+  decidedById String? @map("decided_by_id") @db.Uuid
+  denialReason String? @map("denial_reason")
+  // Treino concluido com este check-in (um por check-in).
+  workoutSessionId String? @unique @map("workout_session_id") @db.Uuid
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  decidedBy GymMember? @relation(fields: [decidedById], references: [id], onDelete: SetNull)
+  workoutSession WorkoutSession? @relation(fields: [workoutSessionId], references: [id], onDelete: SetNull)
+
+  @@index([gymId, requestedAt])
+  @@index([studentId, requestedAt])
+  @@index([status, requestedAt])
+  @@map("check_ins")
 }
 
 // RF07: registro de evolucao fisica do aluno (peso e medidas), que pode ser

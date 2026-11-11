@@ -1,20 +1,11 @@
 import type { Request, Response } from "express";
-import { prisma } from "../database/prisma.js";
 import { GetWorkoutPlanService } from "../services/get-workout-plan.service.js";
 import { AddWorkoutEntryService } from "../services/add-workout-entry.service.js";
 import { UpdateWorkoutEntryService } from "../services/update-workout-entry.service.js";
 import { DeleteWorkoutEntryService } from "../services/delete-workout-entry.service.js";
-import { AppError, handleError } from "../utils/app-error.js";
+import { handleError } from "../utils/app-error.js";
+import { ensureOwnStudent } from "../utils/own-student.js";
 
-async function ensureOwnStudent(professionalId: string, studentId: string) {
-    const student = await prisma.user.findUnique({ where: { id: studentId } });
-
-    if (!student || student.professionalId !== professionalId) {
-        throw new AppError("Aluno não encontrado.", 404);
-    }
-
-    return student;
-}
 
 export class ProfessionalWorkoutPlanController {
     async list(req: Request, res: Response): Promise<Response> {
@@ -37,7 +28,7 @@ export class ProfessionalWorkoutPlanController {
             await ensureOwnStudent(req.userId, studentId);
 
             const addWorkoutEntry = new AddWorkoutEntryService();
-            const entry = await addWorkoutEntry.execute({ ...req.body, userId: studentId });
+            const entry = await addWorkoutEntry.execute({ ...req.body, userId: studentId, addedById: req.userId });
 
             return res.status(201).json(entry);
         } catch (error) {

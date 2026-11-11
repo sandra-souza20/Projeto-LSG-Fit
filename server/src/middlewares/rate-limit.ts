@@ -144,6 +144,6 @@ export const authenticatedRateLimit: RequestHandler[] = [
         name: "account",
         windowMs: MINUTE,
         limit: 120,
-        key: (req) => (req.userId ? `${req.userRole === "GYM" ? "gym" : "user"}:${req.userId}` : null),
+        key: (req) => (req.userId ? `${req.userRole === "GYM" ? "gym-member" : "user"}:${req.userId}` : null),
     }),
 ];

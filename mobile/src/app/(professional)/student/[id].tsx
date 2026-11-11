@@ -10,11 +10,14 @@ import { PrimaryButton } from '@/components/primary-button';
 import { AddExerciseModal } from '@/components/workout/add-exercise-modal';
 import { EditEntryModal } from '@/components/workout/edit-entry-modal';
 import { ExerciseCatalogItem } from '@/components/workout/exercise-catalog-item';
+import { GymFilterToggle } from '@/components/workout/gym-filter-toggle';
 import { WorkoutDaySection } from '@/components/workout/workout-day-section';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useAuth } from '@/contexts/auth-context';
 import { BottomTabInset, FontFamily, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useStudentPhysicalAssessments } from '@/hooks/use-student-physical-assessments';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useStudentWorkoutPlan } from '@/hooks/use-student-workout-plan';
 import { useTheme } from '@/hooks/use-theme';
 import type { Exercise } from '@/types/exercise';
@@ -27,7 +30,8 @@ export default function StudentWorkoutScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { id, name } = useLocalSearchParams<{ id: string; name?: string }>();
-  const { plan, exercises, isLoading, error, addEntry, removeEntry, updateEntry } = useStudentWorkoutPlan(id);
+  const { plan, exercises, isLoading, error, reload, addEntry, removeEntry, updateEntry } = useStudentWorkoutPlan(id);
+  const refreshControl = usePullToRefresh(reload);
   const {
     assessments,
     isLoading: isLoadingAssessments,
@@ -35,7 +39,10 @@ export default function StudentWorkoutScreen() {
     addAssessment,
   } = useStudentPhysicalAssessments(id);
   const [tab, setTab] = useState<Tab>('plan');
+  const { user } = useAuth();
   const [search, setSearch] = useState('');
+  // Com academia, o catalogo comeca mostrando so o que existe na academia do aluno.
+  const [onlyAtGym, setOnlyAtGym] = useState(true);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -46,14 +53,20 @@ export default function StudentWorkoutScreen() {
   const [isAssessmentSubmitting, setIsAssessmentSubmitting] = useState(false);
   const [assessmentFormError, setAssessmentFormError] = useState<string | null>(null);
 
+  // availableAtGym vem null quando o aluno nao tem academia: sem filtro.
+  const hasGym = exercises.some((exercise) => exercise.availableAtGym !== null);
+  const availableCount = exercises.filter((exercise) => exercise.availableAtGym).length;
+
   const filteredExercises = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return exercises;
     return exercises.filter(
       (exercise) =>
-        exercise.name.toLowerCase().includes(query) || exercise.muscleGroup.toLowerCase().includes(query),
+        (!hasGym || !onlyAtGym || exercise.availableAtGym) &&
+        (!query ||
+          exercise.name.toLowerCase().includes(query) ||
+          exercise.muscleGroup.toLowerCase().includes(query)),
     );
-  }, [exercises, search]);
+  }, [exercises, search, hasGym, onlyAtGym]);
 
   async function handleConfirmAdd(input: {
     dayOfWeek: Weekday;
@@ -173,12 +186,14 @@ export default function StudentWorkoutScreen() {
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled">
+            keyboardShouldPersistTaps="handled"
+            refreshControl={refreshControl}>
             {tab === 'plan' ? (
               plan.map((day) => (
                 <WorkoutDaySection
                   key={day.dayOfWeek}
                   day={day}
+                  viewerId={user?.id}
                   onEditEntry={(entry) => {
                     setEditFormError(null);
                     setEditingEntry(entry);
@@ -198,6 +213,14 @@ export default function StudentWorkoutScreen() {
                     { backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.border },
                   ]}
                 />
+                {hasGym && (
+                  <GymFilterToggle
+                    value={onlyAtGym}
+                    onChange={setOnlyAtGym}
+                    availableCount={availableCount}
+                    totalCount={exercises.length}
+                  />
+                )}
                 {filteredExercises.map((exercise) => (
                   <ExerciseCatalogItem
                     key={exercise.id}

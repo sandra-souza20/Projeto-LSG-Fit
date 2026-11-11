@@ -13,7 +13,7 @@ import { clearStoredToken, getStoredToken, saveToken } from '@/services/token-st
 import type { MessageResponse, RegisterResponse, SessionResponse, User, UserRole } from '@/types/user';
 
 type SignInInput = { email: string; password: string };
-type SignUpInput = { name: string; email: string; password: string; confirmPassword: string; gymId?: string | null };
+type SignUpInput = { name: string; email: string; password: string; confirmPassword: string };
 // specialty e bio so sao aceitos para profissional; o servidor ignora gymId e role.
 type UpdateUserInput = {
   name?: string;
@@ -40,13 +40,10 @@ type AuthContextValue = {
   // Tambem reenvia o convite quando o e-mail e de um profissional ainda nao ativado.
   requestPasswordReset: (input: EmailInput) => Promise<void>;
   resetPassword: (input: CodePasswordInput) => Promise<void>;
-  // Primeiro acesso do profissional: cria a senha com o codigo recebido por e-mail.
-  activateAccount: (input: CodePasswordInput) => Promise<void>;
   signOut: () => Promise<void>;
   signOutAllDevices: () => Promise<void>;
   updateUser: (input: UpdateUserInput) => Promise<void>;
   linkProfessional: (professionalId: string | null) => Promise<void>;
-  linkGym: (gymId: string | null) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -148,14 +145,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [startSession],
   );
 
-  const activateAccount = useCallback(
-    async (input: CodePasswordInput) => {
-      const result = await apiRequest<SessionResponse>('/users/activate', { method: 'POST', body: input });
-      await startSession(result);
-    },
-    [startSession],
-  );
-
   const signOut = useCallback(async () => {
     try {
       if (token) {
@@ -189,13 +178,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [token],
   );
 
-  const linkGym = useCallback(
-    async (gymId: string | null) => {
-      setUser(await apiRequest<User>('/users/me/gym', { method: 'PATCH', body: { gymId }, token }));
-    },
-    [token],
-  );
-
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -209,12 +191,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       resendVerificationCode,
       requestPasswordReset,
       resetPassword,
-      activateAccount,
       signOut,
       signOutAllDevices,
       updateUser,
       linkProfessional,
-      linkGym,
     }),
     [
       user,
@@ -226,12 +206,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       resendVerificationCode,
       requestPasswordReset,
       resetPassword,
-      activateAccount,
       signOut,
       signOutAllDevices,
       updateUser,
       linkProfessional,
-      linkGym,
     ],
   );
 

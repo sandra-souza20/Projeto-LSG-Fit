@@ -24,7 +24,10 @@ export function resolveMediaUrl(url: string | null | undefined): string | null {
 // Usa "-" em vez de "·": no Android (OkHttp) header com caractere fora do ASCII derruba a requisicao.
 function resolveDeviceName() {
   const model = Device.modelName ?? Device.deviceName;
-  const os = [Device.osName, Device.osVersion].filter(Boolean).join(' ');
+  // No Android, Device.osName pode trazer o fingerprint da build (ex.: Motorola:
+  // "motorola/cybert_g_sys/cybert:16/..."), entao o nome do sistema e fixo.
+  const osName = Platform.OS === 'android' ? 'Android' : Device.osName;
+  const os = [osName, Device.osVersion].filter(Boolean).join(' ');
   const name = [model, os].filter(Boolean).join(' - ');
   const safe = name.replace(/[^\x20-\x7E]/g, ' ').trim();
   return safe || `Aplicativo LSG FIT (${Platform.OS})`;

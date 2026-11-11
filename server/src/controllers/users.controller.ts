@@ -4,7 +4,7 @@ import { VerifyEmailService } from "../services/verify-email.service.js";
 import { ResendVerificationCodeService } from "../services/resend-verification-code.service.js";
 import { RequestPasswordResetService } from "../services/request-password-reset.service.js";
 import { ResetPasswordService } from "../services/reset-password.service.js";
-import { ActivateProfessionalService } from "../services/activate-professional.service.js";
+import { ActivateProfessionalService, GetProfessionalInviteService } from "../services/activate-professional.service.js";
 import { AppError, handleError } from "../utils/app-error.js";
 import { startUserSession } from "../utils/account-session.js";
 import { serializeUser, USER_SELECT } from "../utils/serializers.js";
@@ -115,43 +115,6 @@ export class UsersController {
 
     // Relacao "Matricula" do DER: o aluno escolhe (ou troca) a academia em que treina.
     // Enviar gymId null cancela a matricula.
-    async linkGym(req: Request, res: Response): Promise<Response> {
-        try {
-            const { gymId } = (req.body ?? {}) as { gymId?: string | null };
-
-            if (gymId === undefined) {
-                throw new AppError("Informe a academia.");
-            }
-
-            if (gymId) {
-                const gym = await prisma.gym.findUnique({ where: { id: gymId } });
-
-                if (!gym) {
-                    throw new AppError("Academia não encontrada.", 404);
-                }
-            }
-
-            const current = await prisma.user.findUniqueOrThrow({
-                where: { id: req.userId },
-                select: { gymId: true },
-            });
-
-            const user = await prisma.user.update({
-                where: { id: req.userId },
-                data: {
-                    gymId: gymId || null,
-                    // A data so muda quando o aluno entra numa academia diferente.
-                    ...((gymId || null) !== current.gymId ? { gymEnrolledAt: gymId ? new Date() : null } : {}),
-                },
-                select: USER_SELECT,
-            });
-
-            return res.status(200).json(serializeUser(user));
-        } catch (error) {
-            return handleError(error, res);
-        }
-    }
-
     async verify(req: Request, res: Response): Promise<Response> {
         try {
             const verifyEmail = new VerifyEmailService();
@@ -204,14 +167,24 @@ export class UsersController {
     }
 
     // Primeiro acesso do profissional: cria a senha com o codigo de convite.
+    // Pagina "ativar conta" do app web: para quem e o convite.
+    async invite(req: Request, res: Response): Promise<Response> {
+        try {
+            const invite = await new GetProfessionalInviteService().execute(req.body ?? {});
+
+            return res.status(200).json(invite);
+        } catch (error) {
+            return handleError(error, res);
+        }
+    }
+
+    // Cria a senha do profissional pelo link do convite. Nao abre sessao: o
+    // profissional entra depois no app mobile.
     async activate(req: Request, res: Response): Promise<Response> {
         try {
-            const activateProfessional = new ActivateProfessionalService();
+            const result = await new ActivateProfessionalService().execute(req.body ?? {});
 
-            const { user } = await activateProfessional.execute(req.body ?? {});
-            const session = await startUserSession(req, res, user, { revokeOthers: true });
-
-            return res.status(200).json({ user, ...session });
+            return res.status(200).json(result);
         } catch (error) {
             return handleError(error, res);
         }

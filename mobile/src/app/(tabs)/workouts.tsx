@@ -3,27 +3,41 @@ import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AddExerciseModal } from '@/components/workout/add-exercise-modal';
+import { EditEntryModal } from '@/components/workout/edit-entry-modal';
 import { ExerciseCatalogItem } from '@/components/workout/exercise-catalog-item';
-import { ExerciseDetailsModal } from '@/components/workout/exercise-details-modal';
-import { RegisterWeightModal } from '@/components/workout/register-weight-modal';
+import { GymFilterToggle } from '@/components/workout/gym-filter-toggle';
 import { WorkoutDaySection } from '@/components/workout/workout-day-section';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, FontFamily, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth-context';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
+import { useCheckIn } from '@/hooks/use-check-in';
+import { useTodayWorkout } from '@/hooks/use-today-workout';
 import { useTheme } from '@/hooks/use-theme';
 import { useWorkoutPlan } from '@/hooks/use-workout-plan';
 import type { Exercise } from '@/types/exercise';
-import { WORKOUT_LETTERS, type WorkoutEntry } from '@/types/workout';
+import { WEEKDAY_LABELS, WORKOUT_LETTERS, type Weekday, type WorkoutEntry } from '@/types/workout';
 
 type Tab = 'plan' | 'catalog';
 
 export default function WorkoutsScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { plan, exercises, isLoading, error, registerWeight, reload } = useWorkoutPlan();
+  const { user } = useAuth();
+  const { plan, exercises, isLoading, error, reload, addEntry, updateEntry, removeEntry } = useWorkoutPlan();
+  const { next, availability, reload: reloadToday } = useTodayWorkout(plan);
+  const checkIn = useCheckIn();
+  const { reload: reloadCheckIn } = checkIn;
+  const refreshControl = usePullToRefresh(useCallback(() => Promise.all([reload(), reloadToday()]), [reload, reloadToday]));
   const [tab, setTab] = useState<Tab>('plan');
   const [search, setSearch] = useState('');
-  const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null);
+  // Com academia, o catalogo comeca mostrando so o que existe nela.
+  const [onlyAtGym, setOnlyAtGym] = useState(true);
+  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
+  const [isAddSubmitting, setIsAddSubmitting] = useState(false);
+  const [addFormError, setAddFormError] = useState<string | null>(null);
   const [editingEntry, setEditingEntry] = useState<WorkoutEntry | null>(null);
   const [isEditSubmitting, setIsEditSubmitting] = useState(false);
   const [editFormError, setEditFormError] = useState<string | null>(null);
@@ -31,30 +45,64 @@ export default function WorkoutsScreen() {
   useFocusEffect(
     useCallback(() => {
       reload();
-    }, [reload]),
+      reloadToday();
+      reloadCheckIn();
+    }, [reload, reloadToday, reloadCheckIn]),
   );
 
   const activeDays = useMemo(() => plan.filter((day) => day.entries.length > 0), [plan]);
 
+  // availableAtGym vem null quando o aluno nao tem academia: sem filtro.
+  const hasGym = exercises.some((exercise) => exercise.availableAtGym !== null);
+  const availableCount = exercises.filter((exercise) => exercise.availableAtGym).length;
+
   const filteredExercises = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return exercises;
     return exercises.filter(
       (exercise) =>
-        exercise.name.toLowerCase().includes(query) || exercise.muscleGroup.toLowerCase().includes(query),
+        (!hasGym || !onlyAtGym || exercise.availableAtGym) &&
+        (!query ||
+          exercise.name.toLowerCase().includes(query) ||
+          exercise.muscleGroup.toLowerCase().includes(query)),
     );
-  }, [exercises, search]);
+  }, [exercises, search, hasGym, onlyAtGym]);
 
-  async function handleConfirmWeight(input: { weight: number | null }) {
+  async function handleConfirmAdd(input: {
+    dayOfWeek: Weekday;
+    sets: number;
+    reps: number;
+    weight: number | null;
+    restSeconds: number | null;
+  }) {
+    if (!selectedExercise) return;
+
+    setIsAddSubmitting(true);
+    setAddFormError(null);
+    try {
+      await addEntry({ exerciseId: selectedExercise.id, ...input });
+      setSelectedExercise(null);
+    } catch (err) {
+      setAddFormError(err instanceof Error ? err.message : 'Não foi possível adicionar o exercício.');
+    } finally {
+      setIsAddSubmitting(false);
+    }
+  }
+
+  async function handleConfirmEdit(input: {
+    sets: number;
+    reps: number;
+    weight: number | null;
+    restSeconds: number | null;
+  }) {
     if (!editingEntry) return;
 
     setIsEditSubmitting(true);
     setEditFormError(null);
     try {
-      await registerWeight(editingEntry.id, input.weight);
+      await updateEntry(editingEntry.id, input);
       setEditingEntry(null);
     } catch (err) {
-      setEditFormError(err instanceof Error ? err.message : 'Não foi possível salvar a carga.');
+      setEditFormError(err instanceof Error ? err.message : 'Não foi possível salvar as alterações.');
     } finally {
       setIsEditSubmitting(false);
     }
@@ -92,30 +140,44 @@ export default function WorkoutsScreen() {
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled">
+            keyboardShouldPersistTaps="handled"
+            refreshControl={refreshControl}>
             {tab === 'plan' ? (
               activeDays.length === 0 ? (
                 <ThemedText type="small" themeColor="textSecondary">
-                  Seu profissional ainda não montou nenhum treino para você.
+                  Sua ficha ainda está vazia. Monte seu treino pelo Catálogo
+                  {user?.professionalId ? ' ou peça ao seu profissional.' : '.'}
                 </ThemedText>
               ) : (
                 activeDays.map((day, index) => (
                   <WorkoutDaySection
                     key={day.dayOfWeek}
                     day={day}
-                    label={`Treino ${WORKOUT_LETTERS[index]}`}
+                    label={`Treino de ${WEEKDAY_LABELS[day.dayOfWeek].toLowerCase()}`}
                     collapsible
                     numbered
-                    editLabel="Carga"
+                    viewerId={user?.id}
                     onEditEntry={(entry) => {
                       setEditFormError(null);
                       setEditingEntry(entry);
                     }}
-                    onStart={() =>
-                      router.push({
-                        pathname: '/workout-session',
-                        params: { day: day.dayOfWeek, letter: WORKOUT_LETTERS[index] },
-                      })
+                    onRemoveEntry={removeEntry}
+                    // So o treino do dia pode ser iniciado, e so se ainda nao treinou hoje.
+                    onStart={
+                      next?.isToday && next.day.dayOfWeek === day.dayOfWeek && checkIn.canTrain
+                        ? () =>
+                            router.push({
+                              pathname: '/workout-session',
+                              params: { day: day.dayOfWeek, letter: WORKOUT_LETTERS[index] },
+                            })
+                        : undefined
+                    }
+                    startHint={
+                      next?.isToday && next.day.dayOfWeek === day.dayOfWeek
+                        ? 'Faça o check-in na tela inicial para iniciar'
+                        : availability(day.dayOfWeek) === 'concluído hoje'
+                          ? 'Treino de hoje concluído'
+                          : `Disponível ${availability(day.dayOfWeek)}`
                     }
                   />
                 ))
@@ -123,8 +185,16 @@ export default function WorkoutsScreen() {
             ) : (
               <>
                 <ThemedText type="small" themeColor="textSecondary">
-                  Consulte os exercícios disponíveis. Quem monta sua ficha é o seu profissional.
+                  Toque em + para colocar um exercício na sua ficha e escolher o dia.
                 </ThemedText>
+                {hasGym && (
+                  <GymFilterToggle
+                    value={onlyAtGym}
+                    onChange={setOnlyAtGym}
+                    availableCount={availableCount}
+                    totalCount={exercises.length}
+                  />
+                )}
                 <TextInput
                   placeholder="Buscar exercício ou grupo muscular"
                   placeholderTextColor={theme.textSecondary}
@@ -139,8 +209,10 @@ export default function WorkoutsScreen() {
                   <ExerciseCatalogItem
                     key={exercise.id}
                     exercise={exercise}
-                    variant="view"
-                    onPress={() => setPreviewExercise(exercise)}
+                    onPress={() => {
+                      setAddFormError(null);
+                      setSelectedExercise(exercise);
+                    }}
                   />
                 ))}
               </>
@@ -149,9 +221,18 @@ export default function WorkoutsScreen() {
         )}
       </SafeAreaView>
 
-      <ExerciseDetailsModal exercise={previewExercise} onClose={() => setPreviewExercise(null)} />
+      <AddExerciseModal
+        exercise={selectedExercise}
+        isSubmitting={isAddSubmitting}
+        serverError={addFormError}
+        onClose={() => {
+          setSelectedExercise(null);
+          setAddFormError(null);
+        }}
+        onConfirm={handleConfirmAdd}
+      />
 
-      <RegisterWeightModal
+      <EditEntryModal
         entry={editingEntry}
         isSubmitting={isEditSubmitting}
         serverError={editFormError}
@@ -159,7 +240,7 @@ export default function WorkoutsScreen() {
           setEditingEntry(null);
           setEditFormError(null);
         }}
-        onConfirm={handleConfirmWeight}
+        onConfirm={handleConfirmEdit}
       />
     </ThemedView>
   );
