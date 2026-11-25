@@ -45,9 +45,11 @@ export function ThemedText({ style, type = 'default', themeColor, children, ...r
     : { fontFamily: fontFamilyForWeight(flat.fontWeight), fontWeight: 'normal' as const };
 
   const isUppercase = flat.textTransform === 'uppercase';
-  // Android nao soma o letterSpacing da ultima letra na largura medida.
-  const letterSpacingFix =
-    isAndroid && flat.letterSpacing ? { paddingRight: Math.ceil(Math.abs(flat.letterSpacing)) } : null;
+  // Android nao soma o letterSpacing da ultima letra na largura medida e, em
+  // maiusculas, a medida ainda sai curta: sem essa folga a ultima letra vai para
+  // uma segunda linha escondida (ex.: "ACADEMI" ao lado de "Sair da academia").
+  const needsRoom = isAndroid && (Boolean(flat.letterSpacing) || isUppercase);
+  const letterSpacingFix = needsRoom ? { paddingRight: Math.ceil(Math.abs(flat.letterSpacing ?? 0)) + 3 } : null;
 
   return (
     <Text

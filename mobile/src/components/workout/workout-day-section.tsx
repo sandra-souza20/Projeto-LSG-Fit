@@ -176,7 +176,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  // Ocupa o espaco livre do cabecalho, para o Android nao cortar a ultima letra
+  // (ver sectionHeaderTitle no perfil).
   dayLabel: {
+    flex: 1,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
