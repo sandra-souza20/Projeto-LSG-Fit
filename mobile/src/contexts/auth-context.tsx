@@ -44,6 +44,8 @@ type AuthContextValue = {
   signOutAllDevices: () => Promise<void>;
   updateUser: (input: UpdateUserInput) => Promise<void>;
   linkProfessional: (professionalId: string | null) => Promise<void>;
+  // Sai da academia (so a academia matricula; o aluno sai quando quiser).
+  leaveGym: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -169,6 +171,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [token],
   );
 
+  const leaveGym = useCallback(async () => {
+    setUser(await apiRequest<User>('/users/me/gym', { method: 'DELETE', token }));
+  }, [token]);
+
   const linkProfessional = useCallback(
     async (professionalId: string | null) => {
       setUser(
@@ -195,6 +201,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOutAllDevices,
       updateUser,
       linkProfessional,
+      leaveGym,
     }),
     [
       user,
@@ -210,6 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOutAllDevices,
       updateUser,
       linkProfessional,
+      leaveGym,
     ],
   );
 

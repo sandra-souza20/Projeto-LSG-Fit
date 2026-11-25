@@ -9,6 +9,8 @@ import { AppError, handleError } from "../utils/app-error.js";
 import { startUserSession } from "../utils/account-session.js";
 import { serializeUser, USER_SELECT } from "../utils/serializers.js";
 import { prisma } from "../database/prisma.js";
+import { cancelPendingCheckIns } from "../services/check-ins.service.js";
+import { publishCheckInEvent } from "../utils/check-in-events.js";
 
 // Aluno e profissional (docs/contrato-api.md, secao 4).
 export class UsersController {
@@ -81,6 +83,39 @@ export class UsersController {
 
     // Relacao "Orienta" do DER: o aluno escolhe (ou troca) o profissional.
     // Enviar professionalId null desfaz o vinculo.
+    // O aluno sai da academia a qualquer momento (so a academia matricula).
+    // Limpa a matricula e a inativacao, cancela o check-in pendente e avisa o
+    // painel da academia em tempo real.
+    async leaveGym(req: Request, res: Response): Promise<Response> {
+        try {
+            const current = await prisma.user.findUniqueOrThrow({
+                where: { id: req.userId },
+                select: { gymId: true, name: true, email: true },
+            });
+
+            if (!current.gymId) {
+                throw new AppError("Você não está matriculado em nenhuma academia.", 400, "NO_GYM");
+            }
+
+            const user = await prisma.user.update({
+                where: { id: req.userId },
+                data: { gymId: null, gymEnrolledAt: null, gymInactivatedAt: null, gymInactiveReason: null },
+                select: USER_SELECT,
+            });
+
+            await prisma.enrollmentEvent.create({ data: { studentId: req.userId, gymId: current.gymId, type: "LEFT" } });
+            await cancelPendingCheckIns(req.userId);
+            await publishCheckInEvent(current.gymId, {
+                type: "student.left",
+                data: { id: req.userId, name: current.name, email: current.email, leftAt: new Date() },
+            });
+
+            return res.status(200).json(serializeUser(user));
+        } catch (error) {
+            return handleError(error, res);
+        }
+    }
+
     async linkProfessional(req: Request, res: Response): Promise<Response> {
         try {
             const { professionalId } = (req.body ?? {}) as { professionalId?: string | null };

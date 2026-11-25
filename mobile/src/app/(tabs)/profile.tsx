@@ -3,6 +3,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ConfirmLogoutModal } from '@/components/confirm-logout-modal';
+import { ConfirmModal } from '@/components/confirm-modal';
 import { EditProfileModal, type ProfileField } from '@/components/edit-profile-modal';
 import { FrequencyCalendar } from '@/components/frequency-calendar';
 import { GymInfo } from '@/components/gym-info';
@@ -27,12 +28,28 @@ const PROFILE_FIELDS: ProfileField[] = [
 export default function ProfileScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { user, updateUser, signOut } = useAuth();
+  const { user, updateUser, signOut, leaveGym } = useAuth();
   const { professionals } = useProfessionals();
   const { assessments, reload: reloadAssessments } = usePhysicalAssessments();
   const [refreshKey, setRefreshKey] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
+  const [isLeaveModalVisible, setIsLeaveModalVisible] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
+
+  async function handleLeaveGym() {
+    setIsLeaving(true);
+    setLeaveError(null);
+    try {
+      await leaveGym();
+      setIsLeaveModalVisible(false);
+    } catch (err) {
+      setLeaveError(err instanceof Error ? err.message : 'Não foi possível sair da academia.');
+    } finally {
+      setIsLeaving(false);
+    }
+  }
 
   const professionalName = useMemo(
     () => professionals.find((professional) => professional.id === user?.professionalId)?.name ?? null,
@@ -75,7 +92,7 @@ export default function ProfileScreen() {
         <FrequencyCalendar refreshKey={refreshKey} />
 
         <View style={styles.sectionHeader}>
-          <ThemedText type="smallBold" style={styles.sectionTitle}>
+          <ThemedText type="smallBold" style={[styles.sectionTitle, styles.sectionHeaderTitle]}>
             Informações pessoais
           </ThemedText>
           <Pressable hitSlop={8} onPress={() => setIsEditing(true)}>
@@ -91,11 +108,23 @@ export default function ProfileScreen() {
           <InfoRow label="Profissional" value={professionalName} placeholder="Nenhum vinculado" />
         </ThemedView>
 
-        {/* Academia so para consulta: a matricula nao e escolhida pelo aluno no app. */}
+        {/* So a academia matricula; o aluno pode sair quando quiser. */}
         <View style={styles.sectionHeader}>
-          <ThemedText type="smallBold" style={styles.sectionTitle}>
+          <ThemedText type="smallBold" style={[styles.sectionTitle, styles.sectionHeaderTitle]}>
             Academia
           </ThemedText>
+          {user?.gym && (
+            <Pressable
+              hitSlop={8}
+              onPress={() => {
+                setLeaveError(null);
+                setIsLeaveModalVisible(true);
+              }}>
+              <ThemedText type="link" themeColor="danger">
+                Sair da academia
+              </ThemedText>
+            </Pressable>
+          )}
         </View>
         <ThemedView type="card" style={[styles.card, { borderColor: theme.border }]}>
           {user?.gym ? (
@@ -114,7 +143,7 @@ export default function ProfileScreen() {
         </ThemedView>
 
         <View style={styles.sectionHeader}>
-          <ThemedText type="smallBold" style={styles.sectionTitle}>
+          <ThemedText type="smallBold" style={[styles.sectionTitle, styles.sectionHeaderTitle]}>
             Avaliações
           </ThemedText>
           <Pressable hitSlop={8} onPress={() => router.push('/physical-assessments')}>
@@ -201,6 +230,17 @@ export default function ProfileScreen() {
         onSave={(values) => updateUser({ name: values.name, phone: values.phone || null })}
       />
 
+      <ConfirmModal
+        visible={isLeaveModalVisible}
+        title="Sair da academia"
+        message={`Você deixa de estar matriculado na ${user?.gym?.name ?? 'academia'} e não precisa mais de check-in. Para voltar, a academia precisa matricular você de novo.`}
+        confirmLabel="Sair da academia"
+        isSubmitting={isLeaving}
+        error={leaveError}
+        onCancel={() => setIsLeaveModalVisible(false)}
+        onConfirm={handleLeaveGym}
+      />
+
       <ConfirmLogoutModal
         visible={isLogoutModalVisible}
         onCancel={() => setIsLogoutModalVisible(false)}
@@ -246,6 +286,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  // Titulo ao lado de um link: fica com todo o espaco livre da linha (o link
+  // fica com a largura dele). Sem isso, no Android a ultima letra era cortada
+  // ("ACADEMI" ao lado de "Sair da academia").
+  sectionHeaderTitle: {
+    flex: 1,
   },
   card: {
     borderWidth: 1,

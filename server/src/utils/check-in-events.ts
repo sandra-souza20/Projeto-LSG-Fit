@@ -6,9 +6,10 @@ import { redis } from "./redis.js";
 // instancia do servidor repassa aos navegadores conectados nela. Assim funciona
 // com mais de um servidor. Se o Redis estiver fora, entrega so localmente.
 
-export type CheckInEventType = "check-in.created" | "check-in.updated";
+// student.left: o aluno saiu da academia pelo app.
+export type CheckInEventType = "check-in.created" | "check-in.updated" | "student.left";
 
-export type CheckInEvent = { type: CheckInEventType; checkIn: unknown };
+export type CheckInEvent = { type: CheckInEventType; data: unknown };
 
 type Listener = (event: CheckInEvent) => void;
 

@@ -113,7 +113,7 @@ export class GymCheckInsController {
         }
     }
 
-    // SSE: eventos "check-in.created" e "check-in.updated" desta academia.
+    // SSE: eventos "check-in.created", "check-in.updated" e "student.left" desta academia.
     // A conexao fecha se a sessao do membro for encerrada.
     stream(req: Request, res: Response): void {
         res.status(200);
@@ -129,7 +129,7 @@ export class GymCheckInsController {
         res.write(`event: ready\ndata: ${JSON.stringify({ at: new Date().toISOString() })}\n\n`);
 
         const unsubscribe = subscribeCheckInEvents(req.gymId, (event) => {
-            res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.checkIn)}\n\n`);
+            res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`);
         });
 
         const heartbeat = setInterval(async () => {

@@ -22,3 +22,5 @@ usersRoutes.post("/activate", checkWebOrigin, codeVerifyRateLimit, usersControll
 usersRoutes.get("/me", ensureAuthenticated, restrictTo("STUDENT", "PROFESSIONAL"), usersController.me);
 usersRoutes.patch("/me", ensureAuthenticated, restrictTo("STUDENT", "PROFESSIONAL"), usersController.updateMe);
 usersRoutes.patch("/me/professional", ensureAuthenticated, restrictTo("STUDENT"), usersController.linkProfessional);
+// Sair da academia (so a academia matricula, mas o aluno sai quando quiser).
+usersRoutes.delete("/me/gym", ensureAuthenticated, restrictTo("STUDENT"), usersController.leaveGym);

@@ -39,7 +39,7 @@ export type SerializedCheckIn = ReturnType<typeof serializeCheckIn>;
 /** Publica a versão atual do check-in para o painel da academia. */
 export async function publishCheckIn(id: string, type: "check-in.created" | "check-in.updated") {
     const checkIn = await prisma.checkIn.findUnique({ where: { id }, include: CHECK_IN_INCLUDE });
-    if (checkIn) await publishCheckInEvent(checkIn.gymId, { type, checkIn: serializeCheckIn(checkIn) });
+    if (checkIn) await publishCheckInEvent(checkIn.gymId, { type, data: serializeCheckIn(checkIn) });
 }
 
 /**
