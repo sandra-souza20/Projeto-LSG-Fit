@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { GymsController } from "../controllers/gyms.controller.js";
 import { GymCheckInsController } from "../controllers/gym-check-ins.controller.js";
+import { GymReportsController } from "../controllers/gym-reports.controller.js";
 import { checkWebOrigin } from "../middlewares/check-web-origin.js";
 import { ensureAuthenticated, restrictTo, restrictToGymOwner } from "../middlewares/ensure-authenticated.js";
 import {
@@ -14,6 +15,7 @@ export const gymsRoutes = Router();
 
 const gymsController = new GymsController();
 const gymCheckInsController = new GymCheckInsController();
+const gymReportsController = new GymReportsController();
 
 // Autenticacao dos membros da academia (app web, sessao por cookie).
 gymsRoutes.post("/", checkWebOrigin, signupRateLimit, gymsController.create);
@@ -106,6 +108,10 @@ gymsRoutes.post(
     gymsController.deactivateStudent,
 );
 gymsRoutes.post("/me/students/:studentId/activate", ensureAuthenticated, restrictTo("GYM"), gymsController.activateStudent);
+
+// Relatorio mensal (?month=aaaa-mm; sem month, o mes atual).
+gymsRoutes.get("/me/reports/monthly", ensureAuthenticated, restrictTo("GYM"), gymReportsController.monthly);
+gymsRoutes.get("/me/reports/monthly.csv", ensureAuthenticated, restrictTo("GYM"), gymReportsController.monthlyCsv);
 
 // Check-ins dos alunos: fila em tempo real (SSE), aprovar e negar.
 gymsRoutes.get("/me/check-ins", ensureAuthenticated, restrictTo("GYM"), gymCheckInsController.list);

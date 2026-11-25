@@ -50,6 +50,7 @@ model User {
   workoutSessions WorkoutSession[]
   authCodes AuthCode[]
   checkIns CheckIn[]
+  enrollmentEvents EnrollmentEvent[]
 
   @@map("users")
 }
@@ -79,6 +80,7 @@ model Gym {
   users User[]
   members GymMember[]
   checkIns CheckIn[]
+  enrollmentEvents EnrollmentEvent[]
 
   @@map("gyms")
 }
@@ -286,4 +288,32 @@ model PhysicalAssessment {
   recordedByProfessional User? @relation("AvaliacaoRegistrada", fields: [recordedByProfessionalId], references: [id], onDelete: SetNull)
 
   @@map("physical_assessments")
+}
+
+// Historico da matricula (relatorio mensal): a matricula atual fica em
+// users.gym_id, mas so o historico diz quem estava matriculado ou inativo
+// num mes passado e quantas matriculas foram canceladas.
+enum EnrollmentEventType {
+  // A academia matriculou o aluno.
+  ENROLLED
+  // A academia cancelou a matricula.
+  CANCELLED
+  // O aluno saiu da academia pelo app.
+  LEFT
+  DEACTIVATED
+  ACTIVATED
+}
+
+model EnrollmentEvent {
+  id String @id @default(uuid()) @db.Uuid
+  studentId String @map("student_id") @db.Uuid
+  gymId String @map("gym_id") @db.Uuid
+  type EnrollmentEventType
+  at DateTime @default(now())
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  gym Gym @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  @@index([gymId, at])
+  @@map("enrollment_events")
 }

@@ -64,3 +64,9 @@ export function todayWeekday(timeZone = APP_TIMEZONE) {
     const name = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "long" }).format(new Date());
     return WEEKDAY_BY_NAME[name]!;
 }
+
+/** Dia da semana de um instante no fuso do app. */
+export function weekdayOf(date: Date, timeZone = APP_TIMEZONE) {
+    const name = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "long" }).format(date);
+    return WEEKDAY_BY_NAME[name]!;
+}

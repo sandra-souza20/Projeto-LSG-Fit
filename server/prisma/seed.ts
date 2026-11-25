@@ -271,7 +271,23 @@ async function upsertUser(user: SeedUser) {
         bio: user.bio ?? null,
     };
 
-    return prisma.user.upsert({ where: { email: user.email }, create: { ...data, email: user.email }, update: data });
+    const saved = await prisma.user.upsert({ where: { email: user.email }, create: { ...data, email: user.email }, update: data });
+
+    // Aluno matriculado: historico da matricula (relatorio mensal), sem repetir
+    // o evento quando o seed roda de novo.
+    if (user.role === "STUDENT" && user.gymId) {
+        const last = await prisma.enrollmentEvent.findFirst({
+            where: { studentId: saved.id, gymId: user.gymId, type: { in: ["ENROLLED", "CANCELLED", "LEFT"] } },
+            orderBy: { at: "desc" },
+        });
+        if (last?.type !== "ENROLLED") {
+            await prisma.enrollmentEvent.create({
+                data: { studentId: saved.id, gymId: user.gymId, type: "ENROLLED", at: data.gymEnrolledAt ?? new Date() },
+            });
+        }
+    }
+
+    return saved;
 }
 
 // Contas de teste (ver as senhas no topo do arquivo). Rodar o seed de novo

@@ -386,7 +386,7 @@ type GymStudentDetail = Omit<GymStudent, "workoutsInRange"> & {
 };
 ```
 - 404 "Aluno não encontrado nesta academia." também para id que não é UUID ou aluno de outra academia.
-- **Matrícula:** só a academia matricula, pelo e-mail que o aluno usa no app. O aluno não escolhe academia no app; ele vê a academia (nome, telefone e endereço) no perfil depois de matriculado. Cadastro ainda não confirmado conta como inexistente (404).
+- **Matrícula:** só a academia matricula, pelo e-mail que o aluno usa no app. O aluno **sai quando quiser** pelo app (`DELETE /users/me/gym` → `200 User`; 400 `NO_GYM` se não estiver matriculado): limpa a matrícula e a inativação, cancela o check-in pendente e o painel recebe o evento SSE `student.left`. O aluno não escolhe academia no app; ele vê a academia (nome, telefone e endereço) no perfil depois de matriculado. Cadastro ainda não confirmado conta como inexistente (404).
 
 ### Inativar e reativar aluno
 | Rota | Corpo | Sucesso | Erros |
@@ -439,9 +439,59 @@ O app consulta `GET /check-ins/today` a cada 3 s enquanto o pedido está pendent
 
 **SSE `/gyms/me/check-ins/stream`**
 - Abrir com `new EventSource(url, { withCredentials: true })` (o cookie `sid` autentica; sem CSRF por ser GET).
-- Eventos: `ready` (ao conectar), `check-in.created` e `check-in.updated` (`data` = `CheckIn` em JSON; inclui aprovado, negado, cancelado e expirado, também quando outro membro decide), `session-expired` (a sessão acabou: ir para o login).
+- Eventos: `ready` (ao conectar), `student.left` (`data` = `{ id, name, email, leftAt }`: o aluno saiu da academia pelo app), `check-in.created` e `check-in.updated` (`data` = `CheckIn` em JSON; inclui aprovado, negado, cancelado e expirado, também quando outro membro decide), `session-expired` (a sessão acabou: ir para o login).
 - Comentário `: ping` a cada 25 s; `retry: 5000` (o navegador reconecta sozinho). Ao reconectar, recarregue a lista com `GET /gyms/me/check-ins?status=PENDING`.
 - Funciona com mais de um servidor (Redis pub/sub).
+
+## 5.2 Relatório mensal
+
+Qualquer membro (`OWNER` ou `ADMIN`). RNF05: só contagens, datas de treino, nomes e vínculos; nunca ficha de treino nem avaliação física.
+
+| Rota | Sucesso | Erros |
+|---|---|---|
+| `GET /gyms/me/reports/monthly?month=aaaa-mm` | `200 MonthlyReport` (sem `month`: mês atual) | 400 "Informe um mês válido (aaaa-mm)." (formato inválido ou mês futuro) |
+| `GET /gyms/me/reports/monthly.csv?month=aaaa-mm` | `200 text/csv` (`;`, BOM UTF-8, `attachment; filename="relatorio-aaaa-mm.csv"`): Aluno, E-mail, Telefone, Profissional, Status, Matriculado em, Treinos no mês, Último treino; um aluno matriculado no fim do mês por linha | 400 |
+
+```ts
+type DayOfWeek = "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY";
+
+type MonthlyReport = {
+  month: string;                       // "2026-11"
+  from: string; to: string;            // período usado (no mês atual, "to" = agora)
+  generatedAt: string;
+  students: {
+    enrolled: number;                  // matriculados no fim do período
+    active: number;
+    inactive: number;
+    newEnrollments: number;            // matrículas feitas no mês
+    cancelledEnrollments: number;      // canceladas pela academia + saídas do aluno pelo app, no mês
+    absent: number;                    // ativos sem treino há mais de 7 dias (ou que nunca treinaram) no fim do período
+  };
+  workouts: {
+    total: number;
+    averagePerActiveStudent: number;   // total / ativos, 1 casa decimal
+    studentsWhoTrained: number;        // matriculados (fim do período) com pelo menos 1 treino no mês
+    trainedPercent: number;            // studentsWhoTrained / enrolled, em % inteiro
+    byDay: { date: string; count: number }[];   // um item por dia do mês, inclusive os sem treino
+    byWeekDay: Record<DayOfWeek, number>;
+  };
+  checkIns: {
+    requested: number; approved: number; denied: number; expired: number; cancelled: number;
+    averageDecisionSeconds: number | null;      // média entre pedido e decisão (aprovados e negados)
+  };
+  professionals: { id: string; name: string; studentsCount: number; workouts: number }[];  // maior número de treinos primeiro
+  withoutProfessional: { studentsCount: number; workouts: number };
+  topStudents: { id: string; name: string; workouts: number; lastWorkoutAt: string | null }[];   // até 10
+  absentStudents: { id: string; name: string; lastWorkoutAt: string | null }[];                   // até 20, há mais tempo sem treinar primeiro
+  previousMonth: { workoutsTotal: number; activeStudents: number; newEnrollments: number } | null;  // null se a academia não existia
+};
+```
+
+**Como os números são calculados**
+- Período no fuso `APP_TIMEZONE` (padrão `America/Sao_Paulo`), do dia 1 às 00:00 até o fim do mês; no mês atual, até agora. Mês anterior à criação da academia: tudo zerado.
+- Quem é aluno da academia em cada mês vem do **histórico da matrícula** (`enrollment_events`: matrícula, cancelamento, saída pelo app, inativação e reativação). O histórico começa com a situação de cada aluno na migração: cancelamentos de antes dela não aparecem.
+- Treinos contados: os concluídos no mês pelos alunos que estiveram matriculados em algum momento do mês, **exceto** os feitos com check-in em outra academia. Para quem continua matriculado, bate com a soma de `workoutsInRange` de `GET /gyms/me/students?from=&to=`; a diferença aparece só quando alguém saiu no meio do mês (o relatório conta os treinos dele até a saída, a listagem não).
+- `professionals`, `studentsCount` e `withoutProfessional` usam o vínculo **atual** de cada aluno (não há histórico de troca de profissional). Os profissionais da academia aparecem mesmo com zero; um profissional de fora que orienta alunos daqui também entra na lista.
 
 ## 6. Rate limit
 Usa Redis (`rate-limit-redis`), com chaves `rl:*` e o e-mail em `sha256` minúsculo. Os headers seguem o padrão `RateLimit` e `Retry-After`.

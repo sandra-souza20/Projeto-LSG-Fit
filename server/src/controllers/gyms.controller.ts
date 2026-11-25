@@ -566,6 +566,8 @@ export class GymsController {
                 );
             }
 
+            await prisma.enrollmentEvent.create({ data: { studentId: student.id, gymId: req.gymId, type: "ENROLLED" } });
+
             const enrolled = await prisma.user.findUniqueOrThrow({
                 where: { id: student.id },
                 select: {
@@ -608,6 +610,7 @@ export class GymsController {
                 where: { id },
                 data: { gymInactivatedAt: new Date(), gymInactiveReason: reason },
             });
+            await prisma.enrollmentEvent.create({ data: { studentId: id, gymId: req.gymId, type: "DEACTIVATED" } });
             await cancelPendingCheckIns(id);
 
             return res.status(204).send();
@@ -620,7 +623,11 @@ export class GymsController {
         try {
             const { id } = await findGymStudent(req.gymId, req.params.studentId as string);
 
+            const current = await prisma.user.findUniqueOrThrow({ where: { id }, select: { gymInactivatedAt: true } });
             await prisma.user.update({ where: { id }, data: { gymInactivatedAt: null, gymInactiveReason: null } });
+            if (current.gymInactivatedAt) {
+                await prisma.enrollmentEvent.create({ data: { studentId: id, gymId: req.gymId, type: "ACTIVATED" } });
+            }
 
             return res.status(204).send();
         } catch (error) {
@@ -647,6 +654,7 @@ export class GymsController {
                 throw new AppError("Aluno não encontrado nesta academia.", 404);
             }
 
+            await prisma.enrollmentEvent.create({ data: { studentId, gymId: req.gymId, type: "CANCELLED" } });
             await cancelPendingCheckIns(studentId);
 
             return res.status(204).send();
